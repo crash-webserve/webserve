@@ -3,7 +3,7 @@
 
 //  Constructor of Server.
 //  - Parameters
-//      ipAddress: The c style string of ip address of server
+//      ipAddress: The c style string of ip address of server.
 //      portNumber: The port number.
 //      serverName: The server name.
 Server::Server(const char* ipAddress, short portNumber, const std::string& serverName)
@@ -16,5 +16,7 @@ Server::Server(const char* ipAddress, short portNumber, const std::string& serve
 //      clientSocket: The socket of client requesting process.
 //      kqueueFD: The kqueue fd is where to add write event for response.
 void Server::process(Socket& clientSocket, int kqueueFD) const {
+    // TODO Process request in clientSocket, and set response._message in clientSocket.
+    clientSocket.setResponse();
     clientSocket.addKevent(kqueueFD, EVFILT_WRITE, NULL);
 }

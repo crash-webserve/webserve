@@ -9,6 +9,7 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include "Request.hpp"
+#include "Response.hpp"
 
 #define TCP_MTU 1500
 
@@ -32,6 +33,7 @@ public:
     std::string     getHTTPMessage();
     const Request&  getRequest() const { return this->_request; };
     void addReceivedLine(const std::string& line) { this->_request.appendMessage(line); };
+    void setResponse();
 
 private:
     bool            _client;
@@ -47,9 +49,7 @@ private:
     void            listenThisSocket();
 
     Request         _request;
-    // Response        _response;
-    //  string message
-    //  pos
+    Response        _response;
 };
 
 #endif

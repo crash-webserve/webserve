@@ -10,6 +10,7 @@ INC         =	-I .
 SRCS        =	ServerConfig.cpp \
 				Log.cpp \
 				Request.cpp \
+				Response.cpp \
 				LocationConfig.cpp \
 				Server.cpp \
 				ServerManager.cpp \
