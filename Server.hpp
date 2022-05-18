@@ -18,16 +18,23 @@
 //      _sock: The socket to accept client for this server.
 class Server {
 public:
+    Server();
     Server(const char* ipAddress, short portNumber, const std::string& _serverName);
 
-    in_port_t getPortNumber() const { return this->_portNumber; };
+    struct in_addr getAddrStruct() const { return this->_sinAddress; }
+    in_port_t getPortNumber() const { return this->_portNumber; }
+    std::string getServerName() const { return this->_serverName; }
+    void setAddrStruct(in_addr_t ipAddress) { this->_sinAddress.s_addr = ipAddress; }
+    void setPortNumber(in_port_t portNumber) { this->_portNumber = portNumber; }
+    void setServerName(std::string serverName) { this->_serverName = serverName; }
+    
     void setSock(Socket* sock) { this->_sock = sock; };
 
     void process(Socket& clientSocket, int kqueueFD) const;
 
 private:
     struct in_addr _sinAddress;
-    short _portNumber;
+    in_port_t _portNumber;
     std::string _serverName;
 
     Socket* _sock;

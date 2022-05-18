@@ -1,6 +1,7 @@
 #include "ServerManager.hpp"
 #include "Server.hpp"
 #include "Request.hpp"
+#include <cstdlib>
 
 // default constructor of ServerManager
 //  - Parameters(None)
@@ -76,8 +77,49 @@ void ServerManager::init() {
 //  TODO Implement real behavior.
 //  Initialize all servers from server config set.
 void ServerManager::initializeServers() {
-    Server* newServer = new Server("127.0.0.1", 2000, "localhost");
-    this->_vServers.push_back(newServer);
+    //  Server* newServer = new Server("127.0.0.1", 2000, "localhost");
+    // NOTE only normal configs
+    for (ServerConfigIter itr = this->_defaultConfigs.begin(); itr != this->_defaultConfigs.end(); itr++) {
+        Server* newServer = this->makeServer(*itr);
+        this->_vServers.push_back(newServer);
+    }
+}
+
+//  TODO Implement real one server using config
+Server*    ServerManager::makeServer(ServerConfig* serverConf) {
+    Server* newServer;
+    directiveContainer config = serverConf->getConfigs();           // original config in server Block
+    std::set<LocationConfig *> locs = serverConf->getLocations();   // config per location block
+
+    // server block
+    for (directiveContainer::iterator itr = config.begin(); itr != config.end(); itr++) {
+        std::cout << itr->first << " : ";
+        for (size_t i = 0; i < itr->second.size(); i++)
+            std::cout << itr->second[i] << " ";
+        std::cout << std::endl;
+    }
+    // location block
+    for (std::set<LocationConfig *>::iterator itr = locs.begin(); itr != locs.end(); itr++) {
+        std::cout << "path : " << (*itr)->getPath() << std::endl;
+        directiveContainer tmp = (*itr)->getHeader();
+        for (directiveContainer::iterator itr2 = tmp.begin(); itr2 != tmp.end(); itr2++) {
+            std::cout << itr2->first << " : ";
+            for (size_t i = 0; i < itr2->second.size(); i++)
+                std::cout << itr2->second[i] << " ";
+            std::cout << std::endl;
+        }
+    }
+    newServer = new Server("127.0.0.1",
+                            static_cast<in_port_t>(std::atoi(config["listen"].front().c_str())),
+                            config["server_name"].front());
+    // NODE how to runnig -> listen 127.0.0.1:80
+    // just port
+    // newServer->setPortNumber(static_cast<in_port_t>(std::atoi(config["listen"].front().c_str())));
+    
+    // Note single server_name
+    // newServer->setServerName(config["server_name"].front());
+    // newServer->setAddrStruct("127.0.0.1");
+    return newServer;
 }
 
 void ServerManager::initializeSocket(int ports[], int size) {

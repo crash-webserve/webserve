@@ -46,6 +46,7 @@ private:
     typedef std::map<int, Socket*>           SocketMap;
     typedef std::map<int, Socket*>::iterator SocketMapIter;
     typedef std::set<ServerConfig *>         ServerConfigSet;
+    typedef std::set<ServerConfig *>::iterator ServerConfigIter;
 
     ServerConfigSet _defaultConfigs;
     ServerVec _vServers;

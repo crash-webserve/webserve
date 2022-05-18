@@ -1,6 +1,16 @@
 #include "Server.hpp"
 #include "Socket.hpp"
 
+//  Default constructor of Server.
+//  - Parameters(None)
+Server::Server() 
+: _portNumber(0),
+_serverName(""),
+_sock(nullptr)
+{
+    _sinAddress.s_addr = 0;
+}; 
+
 //  Constructor of Server.
 //  - Parameters
 //      ipAddress: The c style string of ip address of server
@@ -9,6 +19,7 @@
 Server::Server(const char* ipAddress, short portNumber, const std::string& serverName)
 : _portNumber(portNumber), _serverName(serverName) {
     inet_pton(AF_INET, ipAddress, &this->_sinAddress);
+    _sock = nullptr;
 };
 
 //  Process request from client.
