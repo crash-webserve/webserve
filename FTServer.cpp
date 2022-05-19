@@ -174,7 +174,6 @@ void FTServer::closeConnection(int ident) {
 //  - Return(None)
 void FTServer::read(Connection* connection) {
     ReturnCaseOfRecv result = connection->receive();
-    VirtualServer targetVirtualServer;
 
     switch (result) {
         case RCRECV_ERROR:
@@ -188,11 +187,10 @@ void FTServer::read(Connection* connection) {
             //  TODO Implement behavior
             break;
         case RCRECV_PARSING_SUCCESS:
-            targetVirtualServer = this->getTargetVirtualServer(*connection);
-            targetVirtualServer.process(*connection, this->_kqueue);
-            break;
-        default:
-            assert(false);
+            VirtualServer& targetVirtualServer = this->getTargetVirtualServer(*connection);
+            targetVirtualServer.processRequest(*connection);
+            // TODO 경우에 따라 이벤트 추가
+            // clientConnection.addKevent(kqueueFD, EVFILT_WRITE, NULL);
             break;
     }
 }

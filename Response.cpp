@@ -9,7 +9,7 @@ Response::Response()
 //  Append message to response message.
 //  - Parameters
 //      message: A message to append.
-void Response::appendMessage(const char* message) {
+void Response::appendMessage(const std::string& message) {
     this->_message += message;
 }
 
