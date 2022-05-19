@@ -28,6 +28,7 @@ public:
     Method getMethod() const { return this->_method; };
     char getMajorVersion() const { return this->_majorVersion; };
     char getMinorVersion() const { return this->_minorVersion; };
+    std::string getMessage() const { return this->_message; };
 
     void appendMessage(const std::string& str) { this->_message += str; };
     void parse();

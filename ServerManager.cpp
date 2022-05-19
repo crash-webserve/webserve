@@ -80,6 +80,10 @@ void ServerManager::initializeServers() {
     this->_vServers.push_back(newServer);
 }
 
+// Prepares sockets as descripted by the server configuration.
+// TODO: make it works with actuall server config!
+//  - Parameter
+//  - Return(none)
 void ServerManager::initializeSocket(int ports[], int size) {
     Log::Verbose("kqueue generated: ( %d )", _kqueue);
     for (int i = 0; i < size; i++) {
@@ -94,6 +98,10 @@ void ServerManager::initializeSocket(int ports[], int size) {
     }
 }
 
+// Accept the client from the server socket.
+//  - Parameter
+//      socket: server socket which made a handshake with the incoming client.
+//  - Return(none)
 void ServerManager::clientAccept(Socket* socket) {
     Socket* newSocket = socket->acceptClient();
     _mSocket.insert(std::make_pair(newSocket->getIdent(), newSocket));
@@ -105,16 +113,27 @@ void ServerManager::clientAccept(Socket* socket) {
     Log::Verbose("Client Accepted: [%s]", newSocket->getAddr().c_str());
 }
 
+// Close the certain socket and destroy the instance.
+//  - Parameter
+//      ident: socket FD number to kill.
+//  - Return(none)
+void ServerManager::closeSocket(int ident) {
+    delete _mSocket[ident];
+    _mSocket.erase(ident);
+}
+
 void ServerManager::read(Socket* socket) {
     std::string line;
 
-    socket->receive();
+    socket->receive(line);
 
     socket->addReceivedLine(line);
     Server& targetServer = this->getTargetServer(*socket);
 
-    if (socket->getRequest().isReady())
-        targetServer.process(*socket, this->_kqueue); 
+    std::cout << "test:\n" << socket->getRequest().getMessage();
+
+    if (socket->getRequest().isReady() && socket->isClosed() == false )
+        targetServer.process(*socket, this->_kqueue);
 }
 
 //  TODO Implement real behavior
@@ -127,6 +146,9 @@ Server& ServerManager::getTargetServer(Socket& clientSocket) {
     return *this->_vServers[0];
 }
 
+// Main loop procedure of ServerManager.
+// Do multiflexing job using Kqueue.
+//  - Return(none)
 void ServerManager::run() {
     const int MaxEvents = 20;
     struct kevent events[MaxEvents];
@@ -148,12 +170,17 @@ void ServerManager::run() {
 
             try
             {
-                if (filter == EVFILT_READ && eventSocket->isclient() == false)
+                if (filter == EVFILT_READ && eventSocket->isclient() == false) {
                     clientAccept(eventSocket);
-                else if (filter == EVFILT_READ)
+                } else if (filter == EVFILT_READ) {
+                    Log::Verbose("ServerManager:: kevent: [%d] read event detected.", events[i].ident);
                     this->read(eventSocket);
-                else if (filter == EVFILT_WRITE) {
+                } else if (filter == EVFILT_WRITE) {
+                    Log::Verbose("ServerManager:: kevent: [%d] write event detected.", events[i].ident);
                     eventSocket->transmit();
+                } else if (filter == EVFILT_USER) {
+                    Log::Verbose("ServerManager:: kevent: [%d] socket close event detected", events[i].ident);
+                    this->closeSocket(events[i].ident);
                 }
             }
             catch (const std::exception& excep)

@@ -1,13 +1,14 @@
 #ifndef SOCKET_HPP_
 #define SOCKET_HPP_
 
-#include "Log.hpp"
 #include <string>
 #include <sys/event.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
+#include <unistd.h>
+#include "Log.hpp"
 #include "Request.hpp"
 
 #define TCP_MTU 1500
@@ -27,11 +28,15 @@
 class Socket {
 public:
     Socket(int port);
+    ~Socket();
 
     Socket* acceptClient();
-    void receive();
+    void receive(std::string& line);
     void transmit();
     void addKevent(int kqueue, int filter, void* udata);
+    void addKeventOneshot(int kqueue, void* udata);
+    void removeKevent(int kqueue, int filter, void* udata);
+    void dispose();
 
     bool isclient() { return this->_client; };
     int getIdent() { return this->_ident; };
@@ -39,20 +44,29 @@ public:
     int getPort() { return this->_port; };
     const Request& getRequest() const { return this->_request; };
     void addReceivedLine(const std::string& line) { this->_request.appendMessage(line); };
+    bool isClosed() { return this->_closed; };
+    void setResponse(const std::string& line) { this->_response = line; };
 
 private:
     bool _client;
     int _ident;
-    std::string _addr;
     int _port;
+    std::string _addr;
     Request _request;
-    // Response _response;
+    std::string _response;  // 나중에 Response객체로 대체
+    int _readEventTriggered;
+    int _writeEventTriggered;
+    bool _closed;
 
     Socket(int ident, std::string addr, int port);
 
     void setNewSocket();
     void bindThisSocket();
     void listenThisSocket();
+
+    typedef unsigned char Byte;
+    typedef std::vector<Byte> ByteVector;
+    // typedef ByteVector::iterator ByteVectorIter;
 };
 
 #endif

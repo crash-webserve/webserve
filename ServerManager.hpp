@@ -55,6 +55,7 @@ private:
 
     void makeServer(ServerConfig* serverConf);
     void clientAccept(Socket* socket);
+    void closeSocket(int ident);
     void read(Socket* socket);
     void write(Socket* socket);
     Server* selectServer(/* Request Object */);

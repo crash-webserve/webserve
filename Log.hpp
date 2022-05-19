@@ -6,6 +6,10 @@
 #include <iomanip>
 #include <algorithm>
 
+#ifndef LOG_LEVEL
+#define LOG_LEVEL 5
+#endif
+
 //  Parsed value of the HTTP Headers.
 class Log {
 public:
