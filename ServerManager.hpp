@@ -11,10 +11,18 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
+#include <utility>
 #include "Log.hpp"
 #include "Server.hpp"
 #include "Socket.hpp"
 #include "ServerConfig.hpp"
+
+// NOTE port, server_name only one
+// vector<string>? for multiple server name
+struct ServerConfigKey {
+    std::string _port;
+    std::vector<std::string> _server_name;
+};
 
 // Manage multiple servers (like nginx)
 //  - TODO  
@@ -42,23 +50,32 @@ public:
     void run();
 
 private:
+    struct compServer
+    {
+        bool operator()(ServerConfigKey* lhs, ServerConfigKey* rhs) const
+        {
+            return ((lhs->_port < rhs->_port) || (lhs->_server_name < rhs->_server_name));
+        }
+    };
     typedef std::vector<Server*>             ServerVec;
     typedef std::map<int, Socket*>           SocketMap;
     typedef std::map<int, Socket*>::iterator SocketMapIter;
-    typedef std::set<ServerConfig *>         ServerConfigSet;
-    typedef std::set<ServerConfig *>::iterator ServerConfigIter;
+    // typedef std::set<ServerConfig *, compServer >   ServerConfigSet;
+    typedef std::map<ServerConfigKey *, ServerConfig *, compServer >   ServerConfigMap;
+    // typedef std::set<ServerConfig *>::iterator ServerConfigIter;
+    typedef std::map<ServerConfigKey *, ServerConfig *, compServer >::iterator  ServerConfigIter;
 
-    ServerConfigSet _defaultConfigs;
-    ServerVec _vServers;
-    SocketMap _mSocket;
-    int _kqueue;
-    bool _alive;
+    ServerConfigMap _defaultConfigs;
+    ServerVec       _vServers;
+    SocketMap       _mSocket;
+    int             _kqueue;
+    bool            _alive;
 
-    void makeServer(ServerConfig* serverConf);
-    void clientAccept(Socket* socket);
-    void read(Socket* socket);
-    void write(Socket* socket);
-    Server* selectServer(/* Request Object */);
+    Server*     makeServer(ServerConfig* serverConf);
+    void        clientAccept(Socket* socket);
+    void        read(Socket* socket);
+    void        write(Socket* socket);
+    // Server*     selectServer(/* Request Object */);
 };
 
 #endif  // SERVERMANAGER_HPP_

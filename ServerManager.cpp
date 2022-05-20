@@ -20,8 +20,8 @@ ServerManager::~ServerManager() {
         delete sockIter->second;
     }
 
-    for (std::set<ServerConfig *>::iterator itr = _defaultConfigs.begin(); itr != _defaultConfigs.end(); ++itr) {
-        delete *itr;
+    for (ServerConfigIter itr = _defaultConfigs.begin(); itr != _defaultConfigs.end(); ++itr) {
+        delete itr->second;
     }
 
     Log::Verbose("All Sockets has been deleted.");
@@ -52,9 +52,15 @@ void ServerManager::initParseConfig(std::string filePath) {
             }
             else if (token == "server") {
                 sc = new ServerConfig();
-                if(!sc->parsing(fs, ss, confLine)) // fstream, stringstream를 전달해주는 방식으로 진행
+                if (!sc->parsing(fs, ss, confLine)) // fstream, stringstream를 전달해주는 방식으로 진행
                     std::cerr << "not parsing config\n"; // 각 요소별 동적할당 해제시켜주는게 중요
-                this->_defaultConfigs.insert(sc);
+                ServerConfigKey *key = new ServerConfigKey;
+                directiveContainer tConfigs = sc->getConfigs();
+                if (tConfigs.find("server_name") != tConfigs.end())
+                    key->_server_name = tConfigs.find("server_name")->second;
+                if (tConfigs.find("listen") != tConfigs.end())
+                    key->_port = tConfigs.find("listen")->second[0]; // server_name이랑 port 갖고와서 _defaultconfig insert할 때 key로 넣어줘야함
+                this->_defaultConfigs.insert(std::pair<ServerConfigKey*, ServerConfig *>(key, sc)); // map
             } else
                 std::cerr << "not match (token != server)\n"; // (TODO) 오류터졌을 때 동적할당 해제 해줘야함
             ss.clear();
@@ -80,7 +86,7 @@ void ServerManager::initializeServers() {
     //  Server* newServer = new Server("127.0.0.1", 2000, "localhost");
     // NOTE only normal configs
     for (ServerConfigIter itr = this->_defaultConfigs.begin(); itr != this->_defaultConfigs.end(); itr++) {
-        Server* newServer = this->makeServer(*itr);
+        Server* newServer = this->makeServer(itr->second);
         this->_vServers.push_back(newServer);
     }
 }
@@ -101,7 +107,7 @@ Server*    ServerManager::makeServer(ServerConfig* serverConf) {
     // location block
     for (std::set<LocationConfig *>::iterator itr = locs.begin(); itr != locs.end(); itr++) {
         std::cout << "path : " << (*itr)->getPath() << std::endl;
-        directiveContainer tmp = (*itr)->getHeader();
+        directiveContainer tmp = (*itr)->getDirectives();
         for (directiveContainer::iterator itr2 = tmp.begin(); itr2 != tmp.end(); itr2++) {
             std::cout << itr2->first << " : ";
             for (size_t i = 0; i < itr2->second.size(); i++)
