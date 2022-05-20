@@ -3,13 +3,10 @@
 
 //  Constructor of Server.
 //  - Parameters
-//      ipAddress: The c style string of ip address of server.
 //      portNumber: The port number.
 //      serverName: The server name.
-Server::Server(const char* ipAddress, short portNumber, const std::string& serverName)
-: _portNumber(portNumber), _serverName(serverName) {
-    inet_pton(AF_INET, ipAddress, &this->_sinAddress);
-};
+Server::Server(short portNumber, const std::string& name)
+: _portNumber(portNumber), _name(name) { }
 
 //  Process request from client.
 //  - Parameters

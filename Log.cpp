@@ -1,6 +1,6 @@
 #include "Log.hpp"
 
-void PrintfPrefixed(const char* prefix, const char* format, va_list& va) {
+static void PrintfPrefixed(const char* prefix, const char* format, va_list& va) {
     std::cout << prefix;
     std::cout << std::setw(20) << std::right << ":: ";
     std::vfprintf(stdout, format, va);

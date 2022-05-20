@@ -6,16 +6,11 @@
 #include <iomanip>
 #include <algorithm>
 
-/**
- * @brief Parsed value of the HTTP Headers.
- * 
- */
-
+//  Parsed value of the HTTP Headers.
 class Log {
-private:
-
 public:
     static void Verbose(const char* format, ...);
+private:
 };
 
 

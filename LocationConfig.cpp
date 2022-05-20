@@ -6,7 +6,7 @@ LocationConfig::LocationConfig()
 :_inBrace(false),
 _path("")
 {
-    this->_headers.clear();
+    this->_directives.clear();
 }
 
 //  Destructor of location config
@@ -22,7 +22,7 @@ LocationConfig::~LocationConfig()
 //      fieldValue: header field value(s)
 //  - Return(None)
 void    LocationConfig::appendHeader(std::string fieldName, std::vector<std::string> fieldValue){
-    _headers.insert(make_pair(fieldName, fieldValue));
+    _directives.insert(make_pair(fieldName, fieldValue));
 }
 
 //  Parse and tokenize raw string to location block
@@ -66,7 +66,7 @@ bool    LocationConfig::parsing(std::fstream &fs, std::stringstream &ss, std::st
             fn = token;
         else if (token.substr(token.length() - 1) == ";") {
             fv.push_back(token.substr(0, token.length() - 1));
-            this->_headers.insert(std::pair<std::string, std::vector<std::string> >(fn, fv));
+            this->_directives.insert(std::pair<std::string, std::vector<std::string> >(fn, fv));
             fn.clear();
             fv.clear();
         }

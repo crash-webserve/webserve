@@ -33,7 +33,7 @@ ServerManager::~ServerManager() {
 //  - Parameters
 //      - filePath: config file이 존재하고 있는 경로
 //  - Return(None)
-void    ServerManager::initParseConfig(std::string filePath) {
+void ServerManager::initParseConfig(std::string filePath) {
     std::fstream        fs;
     std::stringstream   ss;
     std::string         confLine = "";
@@ -76,11 +76,11 @@ void ServerManager::init() {
 //  TODO Implement real behavior.
 //  Initialize all servers from server config set.
 void ServerManager::initializeServers() {
-    Server* newServer = new Server("127.0.0.1", 2000, "localhost");
+    Server* newServer = new Server(2000, "localhost");
     this->_vServers.push_back(newServer);
 }
 
-void    ServerManager::initializeSocket(int ports[], int size) {
+void ServerManager::initializeSocket(int ports[], int size) {
     Log::Verbose("kqueue generated: ( %d )", _kqueue);
     for (int i = 0; i < size; i++) {
         Socket* newSocket = new Socket(ports[i]);
@@ -94,7 +94,7 @@ void    ServerManager::initializeSocket(int ports[], int size) {
     }
 }
 
-void    ServerManager::clientAccept(Socket* socket) {
+void ServerManager::clientAccept(Socket* socket) {
     Socket* newSocket = socket->acceptClient();
     _mSocket.insert(std::make_pair(newSocket->getIdent(), newSocket));
     try {
@@ -105,7 +105,7 @@ void    ServerManager::clientAccept(Socket* socket) {
     Log::Verbose("Client Accepted: [%s]", newSocket->getAddr().c_str());
 }
 
-void    ServerManager::read(Socket* socket) {
+void ServerManager::read(Socket* socket) {
     std::string line;
 
     socket->receive();
@@ -127,7 +127,7 @@ Server& ServerManager::getTargetServer(Socket& clientSocket) {
     return *this->_vServers[0];
 }
 
-void    ServerManager::run() {
+void ServerManager::run() {
     const int MaxEvents = 20;
     struct kevent events[MaxEvents];
 

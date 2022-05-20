@@ -8,7 +8,7 @@
 const int NORMAL = 0;
 const int ERROR = -1;
 
-static void initMethod(Request::Method& method, const std::string& token);
+static void initMethod(Method& method, const std::string& token);
 static int initVersion(char& majorVersion, char& minorVersion, const std::string& token);
 
 //  TODO extraction error if not, abort might occur.
@@ -60,13 +60,13 @@ bool Request::isReady() const {
 //  - Parameters
 //      method: reference of type Request::Method to write according to token.
 //      token: string to convert to Request::Method type.
-static void initMethod(Request::Method& method, const std::string& token) {
+static void initMethod(Method& method, const std::string& token) {
     if (token == "GET")
-        method = Request::METHOD_GET;
+        method = METHOD_GET;
     else if (token == "POST")
-        method = Request::METHOD_POST;
+        method = METHOD_POST;
     else if (token == "DELETE")
-        method = Request::METHOD_DELETE;
+        method = METHOD_DELETE;
     else
         assert(false);
 }

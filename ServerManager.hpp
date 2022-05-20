@@ -21,20 +21,18 @@
 //      config 컨테이너에서 실제 서버 객체 만드는 메소드
 //      함수 네이밍 변경(좀 더 구분하기 쉬운 형태로)
 //  - Member variables  
-//      _defaultConfigs: config file에서 파싱해서 정리한 config 컨테이너(set)
+//      _defaultConfigs: config file에서 파싱해서 정리한 config 컨테이너(set), 서버마다 속성값 다르기에 구분
 //      _vServers: 
 //      _mSocket
 //      _kqueue
 //      _alive
+//  - Methods
+//      init: Read and parse configuration file to initialize server. 
 class ServerManager {
 public:
     ServerManager();
     ~ServerManager();
 
-    /**
-     * @brief Read and parse configuration file to initialize server.
-     * 
-     */
     void init();
     void initializeServers();
     void initParseConfig(std::string configfile);
@@ -49,23 +47,17 @@ private:
     typedef std::map<int, Socket*>::iterator SocketMapIter;
     typedef std::set<ServerConfig *>         ServerConfigSet;
 
-    ServerConfigSet _defaultConfigs;    // 서버마다 속성값 다르기에 구분
-    ServerVec       _vServers;
-    SocketMap       _mSocket;
-    int             _kqueue;
-    bool            _alive;
+    ServerConfigSet _defaultConfigs;
+    ServerVec _vServers;
+    SocketMap _mSocket;
+    int _kqueue;
+    bool _alive;
 
-    /**
-     * @brief Generate new Server object as configurated and register to the Server container.
-     * 
-     */
-    void        makeServer(ServerConfig* serverConf);
-    void        clientAccept(Socket* socket);
-    void        read(Socket* socket);
-    void        write(Socket* socket);
-
-    Server*     selectServer(/* Request Object */);
-
+    void makeServer(ServerConfig* serverConf);
+    void clientAccept(Socket* socket);
+    void read(Socket* socket);
+    void write(Socket* socket);
+    Server* selectServer(/* Request Object */);
 };
 
 #endif  // SERVERMANAGER_HPP_

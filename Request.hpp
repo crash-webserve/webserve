@@ -6,6 +6,13 @@
 
 typedef std::map<std::string, std::string> StringMap;
 
+enum Method {
+    METHOD_UNKNOWN,
+    METHOD_GET,
+    METHOD_POST,
+    METHOD_DELETE,
+};
+
 //  Accumulate HTTP request message and parse it and store.
 //  - member variables
 //      _message: Accumulate HTTP request message.
@@ -18,12 +25,6 @@ typedef std::map<std::string, std::string> StringMap;
 //      _body: Parsed payload body.
 class Request {
 public:
-    enum Method {
-        METHOD_GET,
-        METHOD_POST,
-        METHOD_DELETE,
-    };
-
     Method getMethod() const { return this->_method; };
     char getMajorVersion() const { return this->_majorVersion; };
     char getMinorVersion() const { return this->_minorVersion; };
