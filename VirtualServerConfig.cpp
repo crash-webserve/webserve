@@ -1,14 +1,14 @@
-#include "ServerConfig.hpp"
+#include "VirtualServerConfig.hpp"
 
-//  Constructor of ServerConfig
+//  Constructor of VirtualServerConfig
 //  - Parameters(None)
-ServerConfig::ServerConfig()
+VirtualServerConfig::VirtualServerConfig()
 : _inBrace(false){
 }
 
-//  Destructor of ServerConfig
+//  Destructor of VirtualServerConfig
 //  - Parameters(None)
-ServerConfig::~ServerConfig() {
+VirtualServerConfig::~VirtualServerConfig() {
     for (std::set<LocationConfig *>::iterator itr = _locations.begin(); itr != _locations.end(); ++itr)
         delete *itr;
 }
@@ -18,7 +18,7 @@ ServerConfig::~ServerConfig() {
 //      - directive: 
 //      - value: 
 //  - return(None)
-void    ServerConfig::appendConfig(std::string directive, std::vector<std::string> value) {
+void    VirtualServerConfig::appendConfig(std::string directive, std::vector<std::string> value) {
     _configs.insert(make_pair(directive, value));
 }
 
@@ -31,7 +31,7 @@ void    ServerConfig::appendConfig(std::string directive, std::vector<std::strin
 //      If parsing success, it's true. if not, false.
 //  TODO
 //      - Functionalization progresses in semantic units
-bool    ServerConfig::parsing(std::fstream &fs, std::stringstream &ss, std::string confLine)
+bool    VirtualServerConfig::parsing(std::fstream &fs, std::stringstream &ss, std::string confLine)
 {
     std::string token;
     std::string directive = "";

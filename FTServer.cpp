@@ -1,29 +1,29 @@
-#include "ServerManager.hpp"
-#include "Server.hpp"
+#include "FTServer.hpp"
+#include "VirtualServer.hpp"
 #include "Request.hpp"
 
-// default constructor of ServerManager
+// default constructor of FTServer
 //  - Parameters(None)
-ServerManager::ServerManager() :
+FTServer::FTServer() :
 _kqueue(-1),
 _alive(true)
 {
-    Log::Verbose("A ServerManager has been generated.");
+    Log::Verbose("A FTServer has been generated.");
 }
 
-// Destructor of ServerManager
+// Destructor of FTServer
 //  - Parameters(None)
-ServerManager::~ServerManager() {
-    SocketMapIter   sockIter = _mSocket.begin();
-    for (;sockIter != _mSocket.end() ; sockIter++) {
-        delete sockIter->second;
+FTServer::~FTServer() {
+    ConnectionMapIter   connectionIter = _mConnection.begin();
+    for (;connectionIter != _mConnection.end() ; connectionIter++) {
+        delete connectionIter->second;
     }
 
-    for (std::set<ServerConfig *>::iterator itr = _defaultConfigs.begin(); itr != _defaultConfigs.end(); ++itr) {
+    for (std::set<VirtualServerConfig *>::iterator itr = _defaultConfigs.begin(); itr != _defaultConfigs.end(); ++itr) {
         delete *itr;
     }
 
-    Log::Verbose("All Sockets has been deleted.");
+    Log::Verbose("All Connections has been deleted.");
     // close(_kqueue);
 }
 
@@ -33,12 +33,12 @@ ServerManager::~ServerManager() {
 //  - Parameters
 //      - filePath: config file이 존재하고 있는 경로
 //  - Return(None)
-void ServerManager::initParseConfig(std::string filePath) {
+void FTServer::initParseConfig(std::string filePath) {
     std::fstream        fs;
     std::stringstream   ss;
     std::string         confLine = "";
     std::string         token;
-    ServerConfig        *sc;
+    VirtualServerConfig        *sc;
 
     fs.open(filePath);
     if (fs.is_open()) {
@@ -50,7 +50,7 @@ void ServerManager::initParseConfig(std::string filePath) {
                 continue;
             }
             else if (token == "server") {
-                sc = new ServerConfig();
+                sc = new VirtualServerConfig();
                 if(!sc->parsing(fs, ss, confLine)) // fstream, stringstream를 전달해주는 방식으로 진행
                     std::cerr << "not parsing config\n"; // 각 요소별 동적할당 해제시켜주는게 중요
                 this->_defaultConfigs.insert(sc);
@@ -65,36 +65,36 @@ void ServerManager::initParseConfig(std::string filePath) {
 
 //  TODO Implement real behavior.
 //  Initialize server manager from server config set.
-void ServerManager::init() {
-    this->initializeServers();
+void FTServer::init() {
+    this->initializeVirtualServers();
     this->_kqueue = kqueue();
 
     int     portsOpen[2] = {2000, 2020};
-    this->initializeSocket(portsOpen, 2);
+    this->initializeConnection(portsOpen, 2);
 }
 
 //  TODO Implement real behavior.
 //  Initialize all servers from server config set.
-void ServerManager::initializeServers() {
-    Server* newServer = new Server(2000, "localhost");
-    this->_vServers.push_back(newServer);
+void FTServer::initializeVirtualServers() {
+    VirtualServer* newVirtualServer = new VirtualServer(2000, "localhost");
+    this->_vVirtualServers.push_back(newVirtualServer);
 }
 
 // Prepares sockets as descripted by the server configuration.
 // TODO: make it works with actuall server config!
 //  - Parameter
 //  - Return(none)
-void ServerManager::initializeSocket(int ports[], int size) {
+void FTServer::initializeConnection(int ports[], int size) {
     Log::Verbose("kqueue generated: ( %d )", _kqueue);
     for (int i = 0; i < size; i++) {
-        Socket* newSocket = new Socket(ports[i]);
-        _mSocket.insert(std::make_pair(newSocket->getIdent(), newSocket));
+        Connection* newConnection = new Connection(ports[i]);
+        _mConnection.insert(std::make_pair(newConnection->getIdent(), newConnection));
         try {
-            newSocket->addKevent(_kqueue, EVFILT_READ, NULL);
+            newConnection->addKevent(_kqueue, EVFILT_READ, NULL);
         } catch(std::exception& exep) {
             Log::Verbose(exep.what());
         }
-        Log::Verbose("Socket Generated: [%d]", ports[i]);
+        Log::Verbose("Connection Generated: [%d]", ports[i]);
     }
 }
 
@@ -102,54 +102,54 @@ void ServerManager::initializeSocket(int ports[], int size) {
 //  - Parameter
 //      socket: server socket which made a handshake with the incoming client.
 //  - Return(none)
-void ServerManager::clientAccept(Socket* socket) {
-    Socket* newSocket = socket->acceptClient();
-    _mSocket.insert(std::make_pair(newSocket->getIdent(), newSocket));
+void FTServer::clientAccept(Connection* connection) {
+    Connection* newConnection = connection->acceptClient();
+    _mConnection.insert(std::make_pair(newConnection->getIdent(), newConnection));
     try {
-        newSocket->addKevent(_kqueue, EVFILT_READ, NULL);
+        newConnection->addKevent(_kqueue, EVFILT_READ, NULL);
     } catch(std::exception& excep) {
         Log::Verbose(excep.what());
     }
-    Log::Verbose("Client Accepted: [%s]", newSocket->getAddr().c_str());
+    Log::Verbose("Client Accepted: [%s]", newConnection->getAddr().c_str());
 }
 
 // Close the certain socket and destroy the instance.
 //  - Parameter
 //      ident: socket FD number to kill.
 //  - Return(none)
-void ServerManager::closeSocket(int ident) {
-    delete _mSocket[ident];
-    _mSocket.erase(ident);
+void FTServer::closeConnection(int ident) {
+    delete _mConnection[ident];
+    _mConnection.erase(ident);
 }
 
-void ServerManager::read(Socket* socket) {
+void FTServer::read(Connection* connection) {
     std::string line;
 
-    socket->receive(line);
+    connection->receive(line);
 
-    socket->addReceivedLine(line);
-    Server& targetServer = this->getTargetServer(*socket);
+    connection->addReceivedLine(line);
+    VirtualServer& targetVirtualServer = this->getTargetVirtualServer(*connection);
 
-    std::cout << "test:\n" << socket->getRequest().getMessage();
+    std::cout << "test:\n" << connection->getRequest().getMessage();
 
-    if (socket->getRequest().isReady() && socket->isClosed() == false )
-        targetServer.process(*socket, this->_kqueue);
+    if (connection->getRequest().isReady() && connection->isClosed() == false)
+        targetVirtualServer.process(*connection, this->_kqueue); 
 }
 
 //  TODO Implement real behavior
-//  Return appropriate server to process client socket.
+//  Return appropriate server to process client connection.
 //  - Parameters
-//      clientSocket: The socket for client.
-//  - Returns: Appropriate server to process client socket.
-Server& ServerManager::getTargetServer(Socket& clientSocket) {
-    (void)clientSocket;
-    return *this->_vServers[0];
+//      clientConnection: The connection for client.
+//  - Returns: Appropriate server to process client connection.
+VirtualServer& FTServer::getTargetVirtualServer(Connection& clientConnection) {
+    (void)clientConnection;
+    return *this->_vVirtualServers[0];
 }
 
 // Main loop procedure of ServerManager.
 // Do multiflexing job using Kqueue.
 //  - Return(none)
-void ServerManager::run() {
+void FTServer::run() {
     const int MaxEvents = 20;
     struct kevent events[MaxEvents];
 
@@ -158,7 +158,7 @@ void ServerManager::run() {
         int numbers = kevent(_kqueue, NULL, 0, events, MaxEvents, NULL);
         if (numbers < 0)
         {
-            Log::Verbose("Server::run kevent error [%d]", errno);
+            Log::Verbose("VirtualServer::run kevent error [%d]", errno);
             continue;
         }
         Log::Verbose("kevent found %d events.", numbers);
@@ -166,26 +166,26 @@ void ServerManager::run() {
         {
             // struct kevent& event = events[i];
             int filter = events[i].filter;
-            Socket* eventSocket = _mSocket[events[i].ident];
+            Connection* eventConnection = _mConnection[events[i].ident];
 
             try
             {
-                if (filter == EVFILT_READ && eventSocket->isclient() == false) {
-                    clientAccept(eventSocket);
+                if (filter == EVFILT_READ && eventConnection->isclient() == false) {
+                    clientAccept(eventConnection);
                 } else if (filter == EVFILT_READ) {
                     Log::Verbose("ServerManager:: kevent: [%d] read event detected.", events[i].ident);
-                    this->read(eventSocket);
+                    this->read(eventConnection);
                 } else if (filter == EVFILT_WRITE) {
                     Log::Verbose("ServerManager:: kevent: [%d] write event detected.", events[i].ident);
-                    eventSocket->transmit();
+                    eventConnection->transmit();
                 } else if (filter == EVFILT_USER) {
                     Log::Verbose("ServerManager:: kevent: [%d] socket close event detected", events[i].ident);
-                    this->closeSocket(events[i].ident);
+                    this->closeConnection(events[i].ident);
                 }
             }
             catch (const std::exception& excep)
             {
-                Log::Verbose("Server::run Error [%s]", excep.what());
+                Log::Verbose("VirtualServer::run Error [%s]", excep.what());
             }
         }
     }

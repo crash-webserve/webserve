@@ -1,5 +1,5 @@
-#ifndef SOCKET_HPP_
-#define SOCKET_HPP_
+#ifndef CONNECTION_HPP_
+#define CONNECTION_HPP_
 
 #include <string>
 #include <sys/event.h>
@@ -10,12 +10,34 @@
 #include <unistd.h>
 #include "Log.hpp"
 #include "Request.hpp"
+#include "Response.hpp"
 
 #define TCP_MTU 1500
+#define SAMPLE_RESPONSE "HTTP/1.1 200 OK\r\n\
+Content-Length: 365\r\n\
+\r\n\
+<!DOCTYPE html>\r\n\
+<html>\r\n\
+<head>\r\n\
+<title>Welcome to nginx!</title>\r\n\
+<style>\r\n\
+html { color-scheme: light dark; }\r\n\
+body { width: 35em; margin: 0 auto;\r\n\
+font-family: Tahoma, Verdana, Arial, sans-serif; }\r\n\
+</style>\r\n\
+</head>\r\n\
+<body>\r\n\
+<h1>Welcome to nginx!</h1>\r\n\
+\r\n\
+<p><em>Thank you for using nginx.</em></p>\r\n\
+</body>\r\n\
+</html>\r\n\
+\r\n\
+\r\n"
 
-//  General socket handler, from generation communication.
+//  General coonection handler, from generation communication.
 //   - TODO
-//      Socket should handle the receiving and transmiting without malfunction.
+//      Connection should handle the receiving and transmiting without malfunction.
 //      소켓이 수신 결과를 Request객체로 저장할 수 있어야 함.
 //      소켓이 Response객체를 이용해 송신을 처리할 수 있어야 함.
 //   - Member Variables
@@ -25,12 +47,12 @@
 //      _port
 //      _request
 //   - Methods
-class Socket {
+class Connection {
 public:
-    Socket(int port);
-    ~Socket();
+    Connection(int port);
+    ~Connection();
 
-    Socket* acceptClient();
+    Connection* acceptClient();
     void receive(std::string& line);
     void transmit();
     void addKevent(int kqueue, int filter, void* udata);
@@ -58,15 +80,15 @@ private:
     int _writeEventTriggered;
     bool _closed;
 
-    Socket(int ident, std::string addr, int port);
+    Connection(int ident, std::string addr, int port);
 
-    void setNewSocket();
-    void bindThisSocket();
-    void listenThisSocket();
+    void newSocket();
+    void bindSocket();
+    void listenSocket();
 
     typedef unsigned char Byte;
     typedef std::vector<Byte> ByteVector;
     // typedef ByteVector::iterator ByteVectorIter;
 };
 
-#endif
+#endif  // CONNECTION_HPP_

@@ -1,5 +1,5 @@
-#ifndef SERVERCONFIG_HPP_
-#define SERVERCONFIG_HPP_
+#ifndef VIRTUALSERVERCONFIG_HPP_
+#define VIRTUALSERVERCONFIG_HPP_
 
 #include <set>
 #include <map>
@@ -8,15 +8,15 @@
 #include <fstream>
 #include "LocationConfig.hpp"
 
-//  Server config block (parsed config file)
+//  Virtual server config block (parsed config file)
 //  - Member variables
 //      _inBrace: To check if it's inside server block 
 //      _locations: having multiple location configurations
 //      _configs: uniq configs(directive - values pair) in server block
-class ServerConfig {
+class VirtualServerConfig {
 public:
-    ServerConfig();
-    ~ServerConfig();
+    VirtualServerConfig();
+    ~VirtualServerConfig();
     
     bool    getInBrace() { return this->_inBrace; }
     std::set<LocationConfig *> getLocations() { return this->_locations; }
@@ -30,4 +30,4 @@ private:
     std::set<LocationConfig *>          _locations;
     std::map<std::string, std::vector<std::string> >  _configs;
 };
-#endif //SERVERCONFIG_HPP_
+#endif  // VIRTUALSERVERCONFIG_HPP_

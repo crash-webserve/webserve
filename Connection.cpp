@@ -1,27 +1,26 @@
-#include "Socket.hpp"
+#include "Connection.hpp"
 
-// Constructor of Socket class ( no default constructor )
-// Generates a Socket instance for servers.
+// Constructor of Connection class ( no default constructor )
+// Generates a Connection instance for servers.
 //  - Parameters
 //      - port: Port number to open
-Socket::Socket(int port)
+Connection::Connection(int port)
 : _client(false)
 , _port(port)
 , _readEventTriggered(-1)
-, _writeEventTriggered(-1)
-, _closed(false) {
-    setNewSocket();
-    bindThisSocket();
-    listenThisSocket();
+, _writeEventTriggered(-1) {
+    newSocket();
+    bindSocket();
+    listenSocket();
 }
 
-// Constructor of Socket class
-// Generates a Socket instance for clients.
+// Constructor of Connection class
+// Generates a Connection instance for clients.
 //  - Parameters
 //      - ident: Socket FD which is delivered by accept
 //      - addr: Address to the client
 //      - port: Port number to open
-Socket::Socket(int ident, std::string addr, int port)
+Connection::Connection(int ident, std::string addr, int port)
 : _client(true)
 , _ident(ident)
 , _addr(addr)
@@ -33,15 +32,15 @@ Socket::Socket(int ident, std::string addr, int port)
 
 // Destructor of the Socket class
 // Closes opened socket file descriptor.
-Socket::~Socket() {
-    Log::Verbose("Socket instance destructor has been called: [%d]", _ident);
+Connection::~Connection() {
+    Log::Verbose("Connection instance destructor has been called: [%d]", _ident);
     close(_ident);
 }
 
-// Used with accept(), creates a new Socket instance by the information of accepted client.
+// Used with accept(), creates a new Connection instance by the information of accepted client.
 //  - Return
-//      new Socket instance
-Socket* Socket::acceptClient() {
+//      new Connection instance
+Connection* Connection::acceptClient() {
     sockaddr_in     remoteaddr;
     socklen_t       remoteaddrSize = sizeof(remoteaddr);
     struct kevent   ev;
@@ -56,27 +55,28 @@ Socket* Socket::acceptClient() {
     Log::Verbose("Connected from [%s:%d]", addr.c_str(), remoteaddr.sin_port);
     if (fcntl(clientfd, F_SETFL, O_NONBLOCK) < 0)
         throw std::runtime_error("fcntl Failed");
-    return new Socket(clientfd, addr, remoteaddr.sin_port);
+    return new Connection(clientfd, addr, remoteaddr.sin_port);
 }
 
-// The way how Socket class handles receive event.
+// The way how Connection class handles receive event.
 //  - Return(none)
-void Socket::receive(std::string& line) {
+void Connection::receive(std::string& line) {
     Byte buffer[TCP_MTU];
     int recvResult = 0;
 
     recvResult = recv(_ident, buffer, TCP_MTU, 0);
     if (recvResult <= 0) {
         dispose();
+//        return REMOVE;
     } else {
         line.append(reinterpret_cast<char*>(buffer), recvResult);
     }
     Log::Verbose("receive works");
 }
 
-// The way how Socket class handles transmit event.
+// The way how Connection class handles transmit event.
 //  - Return(none)
-void Socket::transmit() {
+void Connection::transmit() {
     int sendResult = 0;
 
     sendResult = send(this->_ident, _response.c_str(), _response.length(), 0);
@@ -92,7 +92,7 @@ void Socket::transmit() {
 //      filter: filter value for Kevent
 //      udata: user data (optional)
 //  - Return(none)
-void Socket::addKevent(int kqueue, int filter, void* udata) {
+void Connection::addKevent(int kqueue, int filter, void* udata) {
     struct kevent   ev;
 
     EV_SET(&ev, _ident, filter, EV_ADD | EV_ENABLE, 0, 0, udata);
@@ -110,7 +110,7 @@ void Socket::addKevent(int kqueue, int filter, void* udata) {
 //      kqueue: FD number of Kqueue
 //      udata: user data (optional)
 //  - Return(none)
-void Socket::addKeventOneshot(int kqueue, void* udata) {
+void Connection::addKeventOneshot(int kqueue, void* udata) {
     struct kevent   ev;
 
     Log::Verbose("Adding oneshot kevent...");
@@ -125,7 +125,7 @@ void Socket::addKeventOneshot(int kqueue, void* udata) {
 //      filter: filter value for Kevent to remove
 //      udata: user data (optional)
 //  - Return(none)
-void Socket::removeKevent(int kqueue, int filter, void* udata) {
+void Connection::removeKevent(int kqueue, int filter, void* udata) {
     struct kevent   ev;
 
     EV_SET(&ev, _ident, filter, EV_DELETE, 0, 0, udata);
@@ -141,7 +141,7 @@ void Socket::removeKevent(int kqueue, int filter, void* udata) {
 // Clean-up process to destroy the Socket instance.
 // mark close attribute, and remove all kevents enrolled.
 //  - Return(none)
-void Socket::dispose() {
+void Connection::dispose() {
     int kqueue = _readEventTriggered;
 
     if (_closed == true)
@@ -155,51 +155,51 @@ void Socket::dispose() {
     addKeventOneshot(kqueue, 0);
 }
 
-// Creates new socket and set for the attribute.
+// Creates new Connection and set for the attribute.
 //  - Return(none)
-void Socket::setNewSocket() {
-    int     newSocket = socket(PF_INET, SOCK_STREAM, 0);
+void Connection::newSocket() {
+    int     newConnection = socket(PF_INET, SOCK_STREAM, 0);
     int     enable = 1;
 
-    if (0 > newSocket) {
+    if (0 > newConnection) {
         throw;
     }
-    Log::Verbose("New Server Socket ( %d )", newSocket);
-    if (0 > setsockopt(newSocket, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int))) {
+    Log::Verbose("New Server Connection ( %d )", newConnection);
+    if (0 > setsockopt(newConnection, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int))) {
         throw;
     }
-    Log::Verbose("Socket ( %d ) has been setted to Reusable.", newSocket);
-    _ident = newSocket;
+    Log::Verbose("Connection ( %d ) has been setted to Reusable.", newConnection);
+    _ident = newConnection;
 }
 
 // Set-up addr_in structure to bind the socket.
 //  - Return(none)
-static void setSocketAddr(int port, sockaddr_in& addr_in) {
+static void setAddrStruct(int port, sockaddr_in& addr_in) {
     std::memset(&addr_in, 0, sizeof(addr_in));
     addr_in.sin_family = PF_INET;
     addr_in.sin_port = htons(port);
     // addr_in.sin_addr.s_addr = INADDR_ANY;
-    Log::Verbose("Socketadd struct has been setted");
+    Log::Verbose("Connectionadd struct has been setted");
 }
 
 // Bind socket to the designated port.
 //  - Return(none)
-void Socket::bindThisSocket() {
+void Connection::bindSocket() {
     sockaddr*   addr;
     sockaddr_in addr_in;
-    setSocketAddr(_port, addr_in);
+    setAddrStruct(_port, addr_in);
     addr = reinterpret_cast<sockaddr*>(&addr_in);
     if (0 > bind(_ident, addr, sizeof(*addr))) {
         throw;
     }
-    Log::Verbose("Socket ( %d ) bind succeed.", socket);
+    Log::Verbose("Connection ( %d ) bind succeed.", socket);
 }
 
 // Listen to the socket for incoming messages.
 //  - Return(none)
-void Socket::listenThisSocket() {
+void Connection::listenSocket() {
     if (0 > listen(_ident, 10)) {
         throw;
     }
-    Log::Verbose("Listening from Socket ( %d ), Port ( %d ).", _ident);
+    Log::Verbose("Listening from Connection ( %d ), Port ( %d ).", _ident);
 }

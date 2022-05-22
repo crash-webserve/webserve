@@ -1,16 +1,16 @@
 #include <sys/event.h>
-#include "ServerManager.hpp"
+#include "FTServer.hpp"
 
 int main(int argc, char **argv) {
-    ServerManager sm;
+    FTServer ftServer;
 
     if (argc != 2)
         std::cerr << "입력 인자 숫자 달라~\n";
     else
-        sm.initParseConfig(argv[1]);
+        ftServer.initParseConfig(argv[1]);
 
-    sm.init();
-    sm.run();
+    ftServer.init();
+    ftServer.run();
 
     return 0;
 }
