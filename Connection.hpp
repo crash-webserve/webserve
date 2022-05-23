@@ -67,7 +67,7 @@ public:
     const Request& getRequest() const { return this->_request; };
     void addReceivedLine(const std::string& line) { this->_request.appendMessage(line); };
     bool isClosed() { return this->_closed; };
-    void setResponse(const std::string& line) { this->_response = line; };
+    void setResponse(const std::string& line) { this->_response.appendMessage(line.c_str()); };
 
 private:
     bool _client;
@@ -75,7 +75,7 @@ private:
     int _port;
     std::string _addr;
     Request _request;
-    std::string _response;  // 나중에 Response객체로 대체
+    Response _response;
     int _readEventTriggered;
     int _writeEventTriggered;
     bool _closed;

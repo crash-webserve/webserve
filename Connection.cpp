@@ -74,15 +74,36 @@ void Connection::receive(std::string& line) {
     Log::Verbose("receive works");
 }
 
-// The way how Connection class handles transmit event.
-//  - Return(none)
-void Connection::transmit() {
-    int sendResult = 0;
+// // The way how Connection class handles transmit event.
+// //  - Return(none)
+// void Connection::transmit() {
+//     int sendResult = 0;
 
-    sendResult = send(this->_ident, _response.c_str(), _response.length(), 0);
-    _response = _response.substr(sendResult, -1);
-    if (sendResult == 0 || _response.length() == 0) {
-        this->removeKevent(_writeEventTriggered, EVFILT_WRITE, 0);
+//     sendResult = send(this->_ident, _response.c_str(), _response.length(), 0);
+//     _response = _response.substr(sendResult, -1);
+//     if (sendResult == 0 || _response.length() == 0) {
+//         this->removeKevent(_writeEventTriggered, EVFILT_WRITE, 0);
+
+//  Send response message to client.
+//  - Parameters(None)
+//  - Return(None)
+void    Connection::transmit() {
+    const int returnValue = this->_response.sendResponseMessage(this->_ident);
+    switch (returnValue) {
+        case RCSEND_SOME:
+            break;
+        case RCSEND_ERROR:
+            // TODO Implement behavior.
+            // break;
+        case RCSEND_ZERO:
+            // TODO Implement behavior.
+            // break;
+        case RCSEND_ALL:
+            this->removeKevent(_writeEventTriggered, EVFILT_WRITE, 0);
+            break;
+        default:
+            assert(false);
+            break;
     }
 }
 
