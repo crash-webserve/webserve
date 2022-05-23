@@ -10,12 +10,25 @@
 #define LOG_LEVEL 5
 #endif
 
-//  Parsed value of the HTTP Headers.
 class Log {
 public:
-    static void Verbose(const char* format, ...);
-private:
-};
+    static void verbose(const char* format, ...);
+    static void debug(const char* format, ...);
+    static void info(const char* format, ...);
+    static void warning(const char* format, ...);
+    static void error(const char* format, ...);
 
+private:
+    enum {
+        LogVerbose,
+        LogDebug,
+        LogInfo,
+        LogWarning,
+        LogError
+    };
+    static const char* getPrefix(int logLevel);
+    static void printPrefixed(int logLevel, const char* format, va_list& va);
+    static void printError(int logLevel);
+};
 
 #endif
