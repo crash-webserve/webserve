@@ -33,7 +33,7 @@ Connection::Connection(int ident, std::string addr, int port)
 // Destructor of the Socket class
 // Closes opened socket file descriptor.
 Connection::~Connection() {
-    Log::Verbose("Connection instance destructor has been called: [%d]", _ident);
+    Log::verbose("Connection instance destructor has been called: [%d]", _ident);
     close(_ident);
 }
 
@@ -52,26 +52,17 @@ Connection* Connection::acceptClient() {
         return NULL;
     }
     addr = inet_ntoa(remoteaddr.sin_addr);
-    Log::Verbose("Connected from [%s:%d]", addr.c_str(), remoteaddr.sin_port);
+    Log::verbose("Connected from [%s:%d]", addr.c_str(), remoteaddr.sin_port);
     if (fcntl(clientfd, F_SETFL, O_NONBLOCK) < 0)
         throw std::runtime_error("fcntl Failed");
     return new Connection(clientfd, addr, remoteaddr.sin_port);
 }
 
 // The way how Connection class handles receive event.
-//  - Return(none)
-void Connection::receive(std::string& line) {
-    Byte buffer[TCP_MTU];
-    int recvResult = 0;
-
-    recvResult = recv(_ident, buffer, TCP_MTU, 0);
-    if (recvResult <= 0) {
-        dispose();
-//        return REMOVE;
-    } else {
-        line.append(reinterpret_cast<char*>(buffer), recvResult);
-    }
-    Log::Verbose("receive works");
+//  - Return
+//      Result of receiving process.
+ReturnCaseOfRecv Connection::receive() {
+    return this->_request.receive(this->_ident);
 }
 
 // // The way how Connection class handles transmit event.
@@ -94,10 +85,6 @@ void    Connection::transmit() {
             break;
         case RCSEND_ERROR:
             // TODO Implement behavior.
-            // break;
-        case RCSEND_ZERO:
-            // TODO Implement behavior.
-            // break;
         case RCSEND_ALL:
             this->removeKevent(_writeEventTriggered, EVFILT_WRITE, 0);
             break;
@@ -134,7 +121,7 @@ void Connection::addKevent(int kqueue, int filter, void* udata) {
 void Connection::addKeventOneshot(int kqueue, void* udata) {
     struct kevent   ev;
 
-    Log::Verbose("Adding oneshot kevent...");
+    Log::verbose("Adding oneshot kevent...");
     EV_SET(&ev, _ident, EVFILT_USER, EV_ADD | EV_ONESHOT, NOTE_TRIGGER, 0, udata);
     if (kevent(kqueue, &ev, 1, 0, 0, 0) < 0)
         throw std::runtime_error("kevent (Oneshot) adding Failed.");
@@ -168,9 +155,9 @@ void Connection::dispose() {
     if (_closed == true)
         return;
     _closed = true;
-    Log::Verbose("Socket instance closing. [%d]", this->_ident);
+    Log::verbose("Socket instance closing. [%d]", this->_ident);
     if (_readEventTriggered >= 0) {
-        Log::Verbose("Read Kevent removing.");
+        Log::verbose("Read Kevent removing.");
         removeKevent(_readEventTriggered, EVFILT_READ, 0);
     }
     addKeventOneshot(kqueue, 0);
@@ -185,11 +172,11 @@ void Connection::newSocket() {
     if (0 > newConnection) {
         throw;
     }
-    Log::Verbose("New Server Connection ( %d )", newConnection);
+    Log::verbose("New Server Connection ( %d )", newConnection);
     if (0 > setsockopt(newConnection, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int))) {
         throw;
     }
-    Log::Verbose("Connection ( %d ) has been setted to Reusable.", newConnection);
+    Log::verbose("Connection ( %d ) has been setted to Reusable.", newConnection);
     _ident = newConnection;
 }
 
@@ -200,7 +187,7 @@ static void setAddrStruct(int port, sockaddr_in& addr_in) {
     addr_in.sin_family = PF_INET;
     addr_in.sin_port = htons(port);
     // addr_in.sin_addr.s_addr = INADDR_ANY;
-    Log::Verbose("Connectionadd struct has been setted");
+    Log::verbose("Connectionadd struct has been setted");
 }
 
 // Bind socket to the designated port.
@@ -213,7 +200,7 @@ void Connection::bindSocket() {
     if (0 > bind(_ident, addr, sizeof(*addr))) {
         throw;
     }
-    Log::Verbose("Connection ( %d ) bind succeed.", socket);
+    Log::verbose("Connection ( %d ) bind succeed.", socket);
 }
 
 // Listen to the socket for incoming messages.
@@ -222,5 +209,5 @@ void Connection::listenSocket() {
     if (0 > listen(_ident, 10)) {
         throw;
     }
-    Log::Verbose("Listening from Connection ( %d ), Port ( %d ).", _ident);
+    Log::verbose("Listening from Connection ( %d ), Port ( %d ).", _ident);
 }

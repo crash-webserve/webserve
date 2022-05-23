@@ -27,9 +27,14 @@ typedef unsigned short port_t;
 //      _connection: The connection to accept client for this server.
 class VirtualServer {
 public:
+    VirtualServer();
     VirtualServer(short portNumber, const std::string& name);
 
-    in_port_t getPortNumber() const { return this->_portNumber; };
+    port_t getPortNumber() const { return this->_portNumber; }
+    std::string getServerName() const { return this->_name; }
+    void setPortNumber(port_t portNumber) { this->_portNumber = portNumber; }
+    void setServerName(std::string serverName) { this->_name = serverName; }
+
     void setConnection(Connection* connection) { this->_connection = connection; };
 
     void process(Connection& clientConnection, int kqueueFD) const;
@@ -40,7 +45,7 @@ private:
     std::size_t _clientMaxBodySize;
     std::vector<Location*> _location;
 
-    std::map<std::string, std::string> others;
+    std::map<std::string, std::string> _others;
 
     Connection* _connection;
 };

@@ -11,10 +11,18 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
+#include <utility>
 #include "Log.hpp"
 #include "VirtualServer.hpp"
 #include "Connection.hpp"
 #include "VirtualServerConfig.hpp"
+
+// NOTE port, server_name only one
+// vector<string>? for multiple server name
+struct ServerConfigKey {
+    std::string _port;
+    std::vector<std::string> _server_name;
+};
 
 // Manage multiple servers (like nginx)
 //  - TODO  
@@ -42,18 +50,26 @@ public:
     void run();
 
 private:
+    struct compServer
+    {
+        bool operator()(const ServerConfigKey& lhs, const ServerConfigKey& rhs) const
+        {
+            return ((lhs._port < rhs._port) || (lhs._server_name < rhs._server_name));
+        }
+    };
     typedef std::vector<VirtualServer*>             VirtualServerVec;
     typedef std::map<int, Connection*>           ConnectionMap;
     typedef std::map<int, Connection*>::iterator ConnectionMapIter;
-    typedef std::set<VirtualServerConfig *>         VirtualServerConfigSet;
+    typedef std::map<ServerConfigKey, VirtualServerConfig *, compServer >  VirtualServerConfigMap;
+    typedef std::map<ServerConfigKey, VirtualServerConfig *, compServer >::iterator  VirtualServerConfigIter;
 
-    VirtualServerConfigSet _defaultConfigs;
-    VirtualServerVec _vVirtualServers;
-    ConnectionMap _mConnection;
-    int _kqueue;
-    bool _alive;
+    VirtualServerConfigMap _defaultConfigs;
+    VirtualServerVec       _vVirtualServers;
+    ConnectionMap       _mConnection;
+    int             _kqueue;
+    bool            _alive;
 
-    void makeVirtualServer(VirtualServerConfig* serverConf);
+    VirtualServer* makeVirtualServer(VirtualServerConfig* serverConf);
     void clientAccept(Connection* connection);
     void closeConnection(int ident);
     void read(Connection* connection);

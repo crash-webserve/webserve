@@ -8,6 +8,7 @@
 #include <fstream>
 #include "LocationConfig.hpp"
 
+typedef std::map<std::string, std::vector<std::string> > directiveContainer;
 //  Virtual server config block (parsed config file)
 //  - Member variables
 //      _inBrace: To check if it's inside server block 

@@ -27,9 +27,6 @@ ReturnCaseOfSend Response::sendResponseMessage(int clientSocket) {
     if (sendedBytes == -1) {
         return RCSEND_ERROR;
     }
-    else if (sendedBytes == 0) {
-        return RCSEND_ZERO;
-    }
     else if (sendedBytes != lengthToSend) {
         this->_sendBegin += sendedBytes;
 

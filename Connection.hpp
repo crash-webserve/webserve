@@ -53,7 +53,7 @@ public:
     ~Connection();
 
     Connection* acceptClient();
-    void receive(std::string& line);
+    ReturnCaseOfRecv receive();
     void transmit();
     void addKevent(int kqueue, int filter, void* udata);
     void addKeventOneshot(int kqueue, void* udata);
@@ -65,7 +65,6 @@ public:
     std::string getAddr() { return this->_addr; };
     int getPort() { return this->_port; };
     const Request& getRequest() const { return this->_request; };
-    void addReceivedLine(const std::string& line) { this->_request.appendMessage(line); };
     bool isClosed() { return this->_closed; };
     void setResponse(const std::string& line) { this->_response.appendMessage(line.c_str()); };
 
