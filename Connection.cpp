@@ -9,9 +9,9 @@ Connection::Connection(int port)
 , _port(port)
 , _readEventTriggered(-1)
 , _writeEventTriggered(-1) {
-    newSocket();
-    bindSocket();
-    listenSocket();
+    this->newSocket();
+    this->bindSocket();
+    this->listenSocket();
 }
 
 // Constructor of Connection class
@@ -34,7 +34,7 @@ Connection::Connection(int ident, std::string addr, int port)
 // Closes opened socket file descriptor.
 Connection::~Connection() {
     Log::verbose("Connection instance destructor has been called: [%d]", _ident);
-    close(_ident);
+    close(this->_ident);
 }
 
 // Used with accept(), creates a new Connection instance by the information of accepted client.
@@ -44,7 +44,7 @@ Connection* Connection::acceptClient() {
     sockaddr_in     remoteaddr;
     socklen_t       remoteaddrSize = sizeof(remoteaddr);
     struct kevent   ev;
-    int clientfd = accept(_ident, reinterpret_cast<sockaddr*>(&remoteaddr), &remoteaddrSize);
+    int clientfd = accept(this->_ident, reinterpret_cast<sockaddr*>(&remoteaddr), &remoteaddrSize);
     std::string     addr;
 
     if (clientfd < 0) {
@@ -86,7 +86,7 @@ void    Connection::transmit() {
         case RCSEND_ERROR:
             // TODO Implement behavior.
         case RCSEND_ALL:
-            this->removeKevent(_writeEventTriggered, EVFILT_WRITE, 0);
+            this->removeKevent(this->_writeEventTriggered, EVFILT_WRITE, 0);
             break;
         default:
             assert(false);
@@ -103,13 +103,13 @@ void    Connection::transmit() {
 void Connection::addKevent(int kqueue, int filter, void* udata) {
     struct kevent   ev;
 
-    EV_SET(&ev, _ident, filter, EV_ADD | EV_ENABLE, 0, 0, udata);
-    if (kevent(kqueue, &ev, 1, 0, 0, 0) < 0)
+    EV_SET(&ev, this->_ident, filter, EV_ADD | EV_ENABLE, 0, 0, udata);
+    if (kevent(this->kqueue, &ev, 1, 0, 0, 0) < 0)
         throw std::runtime_error("kevent adding Failed.");
     if (filter == EVFILT_READ) {
-        _readEventTriggered = kqueue;
+        this->_readEventTriggered = this->kqueue;
     } else if (filter == EVFILT_WRITE) {
-        _writeEventTriggered = kqueue;
+        this->_writeEventTriggered = this->kqueue;
     }
 }
 
@@ -122,8 +122,8 @@ void Connection::addKeventOneshot(int kqueue, void* udata) {
     struct kevent   ev;
 
     Log::verbose("Adding oneshot kevent...");
-    EV_SET(&ev, _ident, EVFILT_USER, EV_ADD | EV_ONESHOT, NOTE_TRIGGER, 0, udata);
-    if (kevent(kqueue, &ev, 1, 0, 0, 0) < 0)
+    EV_SET(&ev, this->_ident, EVFILT_USER, EV_ADD | EV_ONESHOT, NOTE_TRIGGER, 0, udata);
+    if (kevent(this->kqueue, &ev, 1, 0, 0, 0) < 0)
         throw std::runtime_error("kevent (Oneshot) adding Failed.");
 }
 
@@ -136,13 +136,13 @@ void Connection::addKeventOneshot(int kqueue, void* udata) {
 void Connection::removeKevent(int kqueue, int filter, void* udata) {
     struct kevent   ev;
 
-    EV_SET(&ev, _ident, filter, EV_DELETE, 0, 0, udata);
-    if (kevent(kqueue, &ev, 1, 0, 0, 0) < 0)
+    EV_SET(&ev, this->_ident, filter, EV_DELETE, 0, 0, udata);
+    if (kevent(this->kqueue, &ev, 1, 0, 0, 0) < 0)
         throw std::runtime_error("kevent deletion Failed.");
     if (filter == EVFILT_READ) {
-        _readEventTriggered = -1;
+        this->_readEventTriggered = -1;
     } else if (filter == EVFILT_WRITE) {
-        _writeEventTriggered = -1;
+        this->_writeEventTriggered = -1;
     }
 }
 
@@ -150,17 +150,17 @@ void Connection::removeKevent(int kqueue, int filter, void* udata) {
 // mark close attribute, and remove all kevents enrolled.
 //  - Return(none)
 void Connection::dispose() {
-    int kqueue = _readEventTriggered;
+    int kqueue = this->_readEventTriggered;
 
     if (_closed == true)
         return;
     _closed = true;
     Log::verbose("Socket instance closing. [%d]", this->_ident);
-    if (_readEventTriggered >= 0) {
+    if (this->_readEventTriggered >= 0) {
         Log::verbose("Read Kevent removing.");
-        removeKevent(_readEventTriggered, EVFILT_READ, 0);
+        this->removeKevent(this->_readEventTriggered, EVFILT_READ, 0);
     }
-    addKeventOneshot(kqueue, 0);
+    this->addKeventOneshot(kqueue, 0);
 }
 
 // Creates new Connection and set for the attribute.
@@ -177,7 +177,7 @@ void Connection::newSocket() {
         throw;
     }
     Log::verbose("Connection ( %d ) has been setted to Reusable.", newConnection);
-    _ident = newConnection;
+    this->_ident = newConnection;
 }
 
 // Set-up addr_in structure to bind the socket.
@@ -195,9 +195,9 @@ static void setAddrStruct(int port, sockaddr_in& addr_in) {
 void Connection::bindSocket() {
     sockaddr*   addr;
     sockaddr_in addr_in;
-    setAddrStruct(_port, addr_in);
+    setAddrStruct(this->_port, addr_in);
     addr = reinterpret_cast<sockaddr*>(&addr_in);
-    if (0 > bind(_ident, addr, sizeof(*addr))) {
+    if (0 > bind(this->_ident, addr, sizeof(*addr))) {
         throw;
     }
     Log::verbose("Connection ( %d ) bind succeed.", socket);
