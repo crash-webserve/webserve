@@ -13,20 +13,33 @@
 
 typedef unsigned short port_t;
 
-struct StatusCode {
-    static const char* EMPTY;
-    static const char* OK;
-    static const char* CREATED;
-    static const char* MOVED_PERMANENTLY;
-    static const char* BAD_REQUEST;
-    static const char* FORBIDDEN;
-    static const char* NOT_FOUND;
-    static const char* METHOD_NOT_ALLOWED;
-    static const char* LENGTH_REQUIRED;
-    static const char* PAYLOAD_TOO_LARGE;
-    static const char* INTERNAL_SERVER_ERROR;
-    static const char* HTTP_VERSION_NOT_SUPPORTED;
-};  // StatusCode
+//  status code와 reason phrase를 저장하기 위한 기본 단위 구조체
+//  - Member
+//      enum Index: Status::_array 배열의 index로 넣어줄 용도의 상수
+//      _array: status code와 reason phrase 문자열들의 주소를 struct Status 단위로 저장할 전역 변수
+//
+//      _statusCode: Status 객체의 status code
+//      _reasonPhrase: Status 객체의 reason phrase
+struct Status {
+    enum Index {
+        SI_EMPTY,
+        SI_OK,
+        SI_CREATED,
+        SI_MOVED_PERMANENTLY,
+        SI_BAD_REQUEST,
+        SI_FORBIDDEN,
+        SI_NOT_FOUND,
+        SI_METHOD_NOT_ALLOWED,
+        SI_LENGTH_REQUIRED,
+        SI_PAYLOAD_TOO_LARGE,
+        SI_INTERNAL_SERVER_ERROR,
+    };
+
+    static const Status _array[];
+
+    const char* _statusCode;
+    const char* _reasonPhrase;
+};  // Status
 
 //  TODO Add member variable from server config.
 //  VirtualServer is the entity processing request from client.
@@ -85,12 +98,18 @@ private:
     int setOKGETResponse(Connection& clientConnection);
 };  // VirtualServer
 
+//  Return whether the VirtualServer object's _statusCode is same with statusCode.
+//  - Parameters statusCode: the status code to compare with virtual server one.
+//  - Return: Whether the VirtualServer object's _statusCode is same with statusCode.
 inline bool VirtualServer::isStatusCode(const char* statusCode) {
     return memcmp(this->_statusCode, statusCode, 4) == 0;
 }
 
+//  Return whether the VirtualServer object's _statusCode is same with empty statusCode.
+//  - Parameters statusCode(None)
+//  - Return: Whether the VirtualServer object's _statusCode is same with empty statusCode.
 inline bool VirtualServer::isStatusEmpty() {
-    return memcmp(this->_statusCode, StatusCode::EMPTY, 4) == 0;
+    return memcmp(this->_statusCode, Status::_array[Status::SI_EMPTY]._statusCode, 4) == 0;
 }
 
 #endif  // VIRTUALSERVER_HPP_
