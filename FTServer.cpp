@@ -188,9 +188,8 @@ void FTServer::read(Connection* connection) {
             break;
         case RCRECV_PARSING_SUCCESS:
             VirtualServer& targetVirtualServer = this->getTargetVirtualServer(*connection);
-            targetVirtualServer.processRequest(*connection);
-            // TODO 경우에 따라 이벤트 추가
-            // clientConnection.addKevent(kqueueFD, EVFILT_WRITE, NULL);
+            if (targetVirtualServer.processRequest(*connection) == VirtualServer::RC_SUCCESS)
+                connection->addKevent(this->_kqueue, EVFILT_WRITE, NULL);
             break;
     }
 }

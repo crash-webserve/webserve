@@ -31,7 +31,7 @@ struct StatusCode {
 //  TODO Add member variable from server config.
 //  VirtualServer is the entity processing request from client.
 //  - Member variables
-//      _statusCode: Store status code of server.
+//      enum ReturnCode: The return code for this->processRequest().
 //
 //      _portNumber: The port number of server.
 //      _name: The name of server.
@@ -42,8 +42,16 @@ struct StatusCode {
 //          std::string _defaultErrorPagePath: The path used to set error pages.
 //
 //      _connection: The connection to accept client for this server.
+//
+//      _statusCode: Store status code of server.
+//      _targetRepresentationURI: Store target representation URI.
 class VirtualServer {
 public:
+    enum ReturnCode {
+        RC_SUCCESS,
+        RC_IN_PROGRESS,
+    };  // ReturnCode
+
     VirtualServer();
     VirtualServer(short portNumber, const std::string& name);
 
@@ -54,7 +62,7 @@ public:
 
     void setConnection(Connection* connection) { this->_connection = connection; };
 
-    void processRequest(Connection& clientConnection);
+    VirtualServer::ReturnCode processRequest(Connection& clientConnection);
 
 private:
     port_t _portNumber;
