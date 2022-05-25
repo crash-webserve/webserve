@@ -66,6 +66,7 @@ public:
     int getPort() { return this->_hostPort; };
     const Request& getRequest() const { return this->_request; };
     bool isClosed() { return this->_closed; };
+    void clearResponseMessage();
     void appendResponseMessage(const std::string& message);
 
     std::string makeHeaderField(unsigned short fieldName);
@@ -92,6 +93,13 @@ private:
     typedef std::vector<Byte> ByteVector;
     // typedef ByteVector::iterator ByteVectorIter;
 };
+
+//  Clear response message.
+//  - Parameters(None)
+//  - Return(None)
+inline void Connection::clearResponseMessage() {
+    this->_response.clearMessage();
+}
 
 //  Append message to response.
 //  - Parameters message: message to append.

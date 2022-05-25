@@ -79,6 +79,7 @@ public:
     char getMinorVersion() const { return this->_minorVersion; };
     std::string getMessage() const { return this->_message; };
     const std::string* getFirstHeaderFieldValueByName(const std::string& name) const;
+    const std::string& getBody() const { return this->_body; };
 
     ReturnCaseOfRecv receive(int clientSocketFD);
 

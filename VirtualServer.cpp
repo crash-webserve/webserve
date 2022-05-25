@@ -1,8 +1,11 @@
 #include <fstream>
+#include <cstdio>
 #include <cstring>
 #include "VirtualServer.hpp"
 #include "Connection.hpp"
 #include "constant.hpp"
+
+using HTTP::Status;
 
 const Status Status::_array[] = {
     { "000", "default" },
@@ -23,8 +26,7 @@ const Status Status::_array[] = {
 //  - Parameters(None)
 VirtualServer::VirtualServer() 
 : _portNumber(0),
-_name(""),
-_connection(nullptr)
+_name("")
 {
 } 
 
@@ -34,7 +36,6 @@ _connection(nullptr)
 //      serverName: The server name.
 VirtualServer::VirtualServer(short portNumber, const std::string& name)
 : _portNumber(portNumber), _name(name) {
-    _connection = nullptr;
 }
 
 //  Process request from client.
@@ -43,36 +44,6 @@ VirtualServer::VirtualServer(short portNumber, const std::string& name)
 //      kqueueFD: The kqueue fd is where to add write event for response.
 //  - Return: See the type definition.
 VirtualServer::ReturnCode VirtualServer::processRequest(Connection& clientConnection) {
-    const Request& request = clientConnection.getRequest();
-
-    this->setStatusCode(Status::_array[Status::SI_DEFAULT]._statusCode);
-    switch (request.getMethod()) {
-        case HTTP::RM_GET:
-            this->processGETRequest(clientConnection);
-            break;
-        case HTTP::RM_POST:
-            this->processPOSTRequest(clientConnection);
-            break;
-        case HTTP::RM_DELETE:
-            this->processDELETERequest(clientConnection);
-            break;
-        case HTTP::RM_UNKNOWN:
-            // TODO 평가지에 unknown이면 뭐라고 나와 있었는지 참고하기
-            break;
-        default:
-            assert(false);
-            break;
-    }
-
-    this->setResponseMessageByStatusCode(clientConnection);
-
-    return VirtualServer::RC_SUCCESS;
-}
-
-//  Process GET request.
-//  - Parameters clientConnection: The Connection object of client who is requesting.
-//  - Return(None)
-void VirtualServer::processGETRequest(Connection& clientConnection) {
     const Request& request = clientConnection.getRequest();
     const std::string& targetResourceURI = request.getTargetResourceURI();
 
@@ -84,26 +55,18 @@ void VirtualServer::processGETRequest(Connection& clientConnection) {
         }
     }
 
-    if (this->isStatusDefault()) {
-        this->setStatusCode(Status::_array[Status::SI_NOT_FOUND]._statusCode);
-        return;
-    }
-}
+    if (this->isStatusDefault())
+        this->setStatus(Status::I_404);
 
-//  Process POST request.
-//  - Parameters clientConnection: The Connection object of client who is requesting.
-//  - Return(None)
-void VirtualServer::processPOSTRequest(Connection& clientConnection) {
-    // TODO Implement
-    (void)clientConnection;
-}
+    this->processPOSTRequest(request);
+    this->processDELETERequest(request);
 
-//  Process DELETE request.
-//  - Parameters clientConnection: The Connection object of client who is requesting.
-//  - Return(None)
-void VirtualServer::processDELETERequest(Connection& clientConnection) {
-    // TODO Implement
-    (void)clientConnection;
+    this->setResponseMessageByStatus(clientConnection);
+
+    if (this->isStatus(Status::I_500))
+        this->set500Response(clientConnection);
+
+    return VirtualServer::RC_SUCCESS;
 }
 
 //  Process request about location.
@@ -113,37 +76,95 @@ void VirtualServer::processDELETERequest(Connection& clientConnection) {
 //  - Return(None)
 void VirtualServer::processLocation(const Request& request, const Location& location) {
     if (!location.isRequestMethodAllowed(request.getMethod())) {
-        this->setStatusCode(Status::_array[Status::SI_METHOD_NOT_ALLOWED]._statusCode);
+        this->setStatus(Status::I_405);
         return;
     }
 
+    this->setStatus(Status::I_404); // TODO 강제로 404 만드는 임시 코드
+
     const std::string& targetResourceURI = request.getTargetResourceURI();
     location.getRepresentationPath(targetResourceURI, this->_targetRepresentationURI);
+    // TODO 만약 _targetRepresentationURI가 존재하는 파일이라면 상태를 200으로 설정
+    // TODO (추측) 만약 _targetRepresentationURI가 존재하지 않는 파일일 경우 index에 정의된 파일로 설정하기. 그것도 없으면 404.(index 관련 로직 조사 필요 POST라면? DELETE라면?)
+}
+
+//  Process POST request's unique work.
+//  If the request method is not POST, do nothing.
+//  - Parameters request: The request to process.
+//  - Return(None)
+void VirtualServer::processPOSTRequest(const Request& request) {
+    if (request.getMethod() != HTTP::RM_POST)
+        return;
+
+    std::ofstream out(this->_targetRepresentationURI.c_str());
+    if (!out.is_open()) {
+        this->setStatus(Status::I_500);
+    }
+
+    const std::string& requestBody = request.getBody();
+    out << requestBody;
+    out.close();
+}
+
+//  Process DELETE request's unique work.
+//  If the request method is not DELETE, do nothing.
+//  - Parameters request: The request to process.
+//  - Return(None)
+void VirtualServer::processDELETERequest(const Request& request) {
+    if (request.getMethod() != HTTP::RM_DELETE)
+        return;
+
+    unlink(this->_targetRepresentationURI.c_str());
 }
 
 //  Set response message according to this->_statusCode.
+//  If the status code is 500, do nothing.
 //  - Parameters clientConnection: The Connection object of client who is requesting.
 //  - Return(None)
-void VirtualServer::setResponseMessageByStatusCode(Connection& clientConnection) {
-    if (this->isStatusCode(Status::_array[Status::SI_OK]._statusCode))
-        setOKGETResponse(clientConnection);
+void VirtualServer::setResponseMessageByStatus(Connection& clientConnection) {
+    if (this->isStatus(Status::I_500))
+        return;
+
+    clientConnection.clearResponseMessage();
+
+    setStatusLine(clientConnection);
+
+    if (this->isStatus(Status::I_200)) {
+        if (clientConnection.getRequest().getMethod() == HTTP::RM_GET) {
+            this->setGETResponse(clientConnection);
+        }
+        else if (clientConnection.getRequest().getMethod() == HTTP::RM_POST) {
+            this->setPOSTResponse(clientConnection);
+        }
+        else if (clientConnection.getRequest().getMethod() == HTTP::RM_DELETE) {
+            this->setDELETEResponse(clientConnection);
+        }
+    }
+    else if (this->isStatus(Status::I_404)) {
+        this->set404Response(clientConnection);
+    }
 }
 
-//  Set response message as OK status response of GET request.
-//  - Parameters clientConnection: The Connection object of client who is requesting.
+//  Set status line to response of clientConnection.
+//  - Parameters clientConnection: The client connection.
 //  - Return(None)
-int VirtualServer::setOKGETResponse(Connection& clientConnection) {
+void VirtualServer::setStatusLine(Connection& clientConnection) {
     clientConnection.appendResponseMessage("HTTP/1.1 ");
-    clientConnection.appendResponseMessage(Status::_array[Status::SI_OK]._statusCode);
-    clientConnection.appendResponseMessage(Status::_array[Status::SI_OK]._reasonPhrase);
+    clientConnection.appendResponseMessage(HTTP::getStatusCodeBy(Status::I_200));
+    clientConnection.appendResponseMessage(HTTP::getStatusReasonBy(Status::I_200));
     clientConnection.appendResponseMessage("\r\n");
+}
 
-    // TODO append header section
+//  Set response of GET request.
+//  - Parameters clientConnection: The client connection.
+//  - Return: whether an error has occured or not.
+int VirtualServer::setGETResponse(Connection& clientConnection) {
+    // TODO 적절한 헤더 필드 추가하기
     clientConnection.appendResponseMessage(clientConnection.makeHeaderField(HTTP::DATE));
 
     std::ifstream targetRepresentation(this->_targetRepresentationURI, std::ios_base::binary | std::ios_base::ate);
     if (!targetRepresentation.is_open()) {
-        setStatusCode(Status::_array[Status::SI_INTERNAL_SERVER_ERROR]._statusCode);
+        this->setStatus(Status::I_500);
         return -1;
     }
 
@@ -154,4 +175,41 @@ int VirtualServer::setOKGETResponse(Connection& clientConnection) {
         clientConnection.appendResponseMessage(str.c_str());
 
     return 0;
+}
+
+//  Set response of POST request.
+//  - Parameters clientConnection: The client connection.
+//  - Return(None)
+void VirtualServer::setPOSTResponse(Connection& clientConnection) {
+    // TODO implement
+}
+
+//  Set response of DELETE request.
+//  - Parameters clientConnection: The client connection.
+//  - Return(None)
+void VirtualServer::setDELETEResponse(Connection& clientConnection) {
+    // TODO implement
+}
+
+void VirtualServer::set404Response(Connection& clientConnection) {
+    // TODO implement
+    clientConnection.appendResponseMessage("Date: ");
+    clientConnection.appendResponseMessage(clientConnection.makeHeaderField(HTTP::DATE));
+    clientConnection.appendResponseMessage("\r\n");
+    clientConnection.appendResponseMessage("\r\n");
+}
+
+//  set response message with 500 status.
+//  If the status code is not 500, do nothing.
+//  - Parameters clientConnection: The Connection object of client who is requesting.
+//  - Return(None)
+void VirtualServer::set500Response(Connection& clientConnection) {
+    if (!this->isStatus(Status::I_500))
+        return;
+
+    clientConnection.clearResponseMessage();
+
+    setStatusLine(clientConnection);
+
+    // TODO append header section and body
 }

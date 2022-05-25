@@ -100,6 +100,8 @@ ParsingResult Request::parseMessage() {
 
     this->_body = this->_message.substr(iss.tellg());
 
+    this->_message.clear();
+
     return PR_SUCCESS;
 }
 
