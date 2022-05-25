@@ -5,7 +5,7 @@
 #include "constant.hpp"
 
 const Status Status::_array[] = {
-    { "000", "empty" },
+    { "000", "default" },
     { "200", "ok" },
     { "201", "created" },
     { "301", "moved permanently" },
@@ -44,7 +44,7 @@ VirtualServer::VirtualServer(short portNumber, const std::string& name)
 void VirtualServer::processRequest(Connection& clientConnection) {
     const Request& request = clientConnection.getRequest();
 
-    this->setStatusCode(Status::_array[Status::SI_EMPTY]._statusCode);
+    this->setStatusCode(Status::_array[Status::SI_DEFAULT]._statusCode);
     switch (request.getMethod()) {
         case HTTP::RM_GET:
             this->processGETRequest(clientConnection);
@@ -81,7 +81,7 @@ void VirtualServer::processGETRequest(Connection& clientConnection) {
         }
     }
 
-    if (this->isStatusEmpty()) {
+    if (this->isStatusDefault()) {
         this->setStatusCode(Status::_array[Status::SI_NOT_FOUND]._statusCode);
         return;
     }

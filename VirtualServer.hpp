@@ -22,7 +22,7 @@ typedef unsigned short port_t;
 //      _reasonPhrase: Status 객체의 reason phrase
 struct Status {
     enum Index {
-        SI_EMPTY,
+        SI_DEFAULT,
         SI_OK,
         SI_CREATED,
         SI_MOVED_PERMANENTLY,
@@ -85,7 +85,7 @@ private:
     void setStatusCode(const char* statusCode) { std::memcpy(this->_statusCode, statusCode, 4); };
 
     bool isStatusCode(const char* statusCode);
-    bool isStatusEmpty();
+    bool isStatusDefault();
 
     void processGETRequest(Connection& clientConnection);
     void processPOSTRequest(Connection& clientConnection);
@@ -105,11 +105,11 @@ inline bool VirtualServer::isStatusCode(const char* statusCode) {
     return memcmp(this->_statusCode, statusCode, 4) == 0;
 }
 
-//  Return whether the VirtualServer object's _statusCode is same with empty statusCode.
+//  Return whether the VirtualServer object's _statusCode is same with default statusCode.
 //  - Parameters statusCode(None)
-//  - Return: Whether the VirtualServer object's _statusCode is same with empty statusCode.
-inline bool VirtualServer::isStatusEmpty() {
-    return memcmp(this->_statusCode, Status::_array[Status::SI_EMPTY]._statusCode, 4) == 0;
+//  - Return: Whether the VirtualServer object's _statusCode is same with default statusCode.
+inline bool VirtualServer::isStatusDefault() {
+    return memcmp(this->_statusCode, Status::_array[Status::SI_DEFAULT]._statusCode, 4) == 0;
 }
 
 #endif  // VIRTUALSERVER_HPP_
