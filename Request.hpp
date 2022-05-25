@@ -14,10 +14,10 @@ namespace HTTP {
 
 //  RequestMethod indicates request method type of HTTP request message.
 enum RequestMethod {
-    RM_UNKNOWN,
-    RM_GET,
-    RM_POST,
-    RM_DELETE,
+    RM_UNKNOWN = 0x0,
+    RM_GET = 0x1 << 0,
+    RM_POST = 0x1 << 1,
+    RM_DELETE = 0x1 << 2,
 };
 
 }   // namespace HTTP
@@ -37,8 +37,6 @@ enum ReturnCaseOfRecv {
     RCRECV_PARSING_SUCCESS,
 };
 
-const int BUF_SIZE = 1024;
-
 //  Accumulate HTTP request message and parse it and store.
 //  - member variables
 //      _message: Accumulated HTTP request message.
@@ -57,6 +55,7 @@ public:
     ~Request();
 
     HTTP::RequestMethod getMethod() const { return this->_method; };
+    const std::string& getTargetResourceURI() const { return this->_target; };
     char getMajorVersion() const { return this->_majorVersion; };
     char getMinorVersion() const { return this->_minorVersion; };
     std::string getMessage() const { return this->_message; };

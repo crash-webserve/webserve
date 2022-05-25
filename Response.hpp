@@ -24,7 +24,7 @@ class Response {
 public:
     Response();
 
-    void appendMessage(const char* message);
+    void appendMessage(const std::string& message);
     ReturnCaseOfSend sendResponseMessage(int clientSocket);
 
 private:

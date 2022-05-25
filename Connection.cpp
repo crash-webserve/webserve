@@ -104,12 +104,12 @@ void Connection::addKevent(int kqueue, int filter, void* udata) {
     struct kevent   ev;
 
     EV_SET(&ev, this->_ident, filter, EV_ADD | EV_ENABLE, 0, 0, udata);
-    if (kevent(this->kqueue, &ev, 1, 0, 0, 0) < 0)
+    if (kevent(kqueue, &ev, 1, 0, 0, 0) < 0)
         throw std::runtime_error("kevent adding Failed.");
     if (filter == EVFILT_READ) {
-        this->_readEventTriggered = this->kqueue;
+        this->_readEventTriggered = kqueue;
     } else if (filter == EVFILT_WRITE) {
-        this->_writeEventTriggered = this->kqueue;
+        this->_writeEventTriggered = kqueue;
     }
 }
 
@@ -123,7 +123,7 @@ void Connection::addKeventOneshot(int kqueue, void* udata) {
 
     Log::verbose("Adding oneshot kevent...");
     EV_SET(&ev, this->_ident, EVFILT_USER, EV_ADD | EV_ONESHOT, NOTE_TRIGGER, 0, udata);
-    if (kevent(this->kqueue, &ev, 1, 0, 0, 0) < 0)
+    if (kevent(kqueue, &ev, 1, 0, 0, 0) < 0)
         throw std::runtime_error("kevent (Oneshot) adding Failed.");
 }
 
@@ -137,7 +137,7 @@ void Connection::removeKevent(int kqueue, int filter, void* udata) {
     struct kevent   ev;
 
     EV_SET(&ev, this->_ident, filter, EV_DELETE, 0, 0, udata);
-    if (kevent(this->kqueue, &ev, 1, 0, 0, 0) < 0)
+    if (kevent(kqueue, &ev, 1, 0, 0, 0) < 0)
         throw std::runtime_error("kevent deletion Failed.");
     if (filter == EVFILT_READ) {
         this->_readEventTriggered = -1;

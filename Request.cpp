@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include <cassert>
 #include "Request.hpp"
+#include "constant.hpp"
 
 //  Destructor of Request object.
 Request::~Request() {

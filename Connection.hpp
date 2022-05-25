@@ -66,7 +66,7 @@ public:
     int getPort() { return this->_port; };
     const Request& getRequest() const { return this->_request; };
     bool isClosed() { return this->_closed; };
-    void setResponse(const std::string& line) { this->_response.appendMessage(line.c_str()); };
+    void appendResponseMessage(const std::string& message);
 
 private:
     bool _client;
@@ -89,5 +89,12 @@ private:
     typedef std::vector<Byte> ByteVector;
     // typedef ByteVector::iterator ByteVectorIter;
 };
+
+//  Append message to response.
+//  - Parameters message: message to append.
+//  - Return(None)
+inline void Connection::appendResponseMessage(const std::string& message) {
+    this->_response.appendMessage(message);
+}
 
 #endif  // CONNECTION_HPP_
