@@ -46,16 +46,18 @@ Connection* Connection::acceptClient() {
     struct kevent   ev;
     int clientfd = accept(this->_ident, reinterpret_cast<sockaddr*>(&remoteaddr), &remoteaddrSize);
     std::string     addr;
+    int             port;
 
     if (clientfd < 0) {
         throw std::runtime_error("accept() Failed");
         return NULL;
     }
     addr = inet_ntoa(remoteaddr.sin_addr);
-    Log::verbose("Connected from [%s:%d]", addr.c_str(), remoteaddr.sin_port);
+    port = ntohs(remoteaddr.sin_port);
+    Log::verbose("Connected from [%s:%d]", addr.c_str(), port);
     if (fcntl(clientfd, F_SETFL, O_NONBLOCK) < 0)
         throw std::runtime_error("fcntl Failed");
-    return new Connection(clientfd, addr, remoteaddr.sin_port);
+    return new Connection(clientfd, addr, port);
 }
 
 // The way how Connection class handles receive event.
@@ -200,7 +202,7 @@ void Connection::bindSocket() {
     if (0 > bind(this->_ident, addr, sizeof(*addr))) {
         throw;
     }
-    Log::verbose("Connection ( %d ) bind succeed.", socket);
+    Log::verbose("Connection ( %d ) bind succeed.", _ident);
 }
 
 // Listen to the socket for incoming messages.
