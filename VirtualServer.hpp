@@ -78,8 +78,6 @@ public:
         _others.insert(make_pair(directiveName, directiveValue[0])); // TODO multi-value
     };
     void appendLocation(Location* lc) { this->_location.push_back(lc); };
-    void processRequest(Connection& clientConnection);
-
     VirtualServer::ReturnCode processRequest(Connection& clientConnection);
 
 private:
