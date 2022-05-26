@@ -18,10 +18,30 @@
 //          std::string _HTTPRedirection: The URI to redirect.
 class Location {
 public:
+    Location();
     bool isPathMatch(const std::string& resourceURI) const;
     bool isRequestMethodAllowed(HTTP::RequestMethod requestMethod) const;
     void getRepresentationPath(const std::string& resourceURI, std::string& representationPath) const;
 
+    std::string getRoute() { return this->_route; };
+    std::string getRoot() { return this->_root; };
+    std::string getIndex() { return this->_index; };
+    bool getAutoIndex() { return this->_autoindex; };
+    char getAllowedHTTPMethod() { return this->_allowedHTTPMethod; };
+    std::vector<std::string> getCGIExtention() { return this->_cgiExtension; }
+
+    void setRoute(std::string route) { this->_route = route; };
+    void setRoot(std::string root) { this->_root = root; };
+    void setIndex(std::vector<std::string> idx) { 
+        this->_index = idx[0];  // TODO multiple index
+    };
+    void setAutoIndex(bool isAutoindex) { this->_autoindex = isAutoindex; };
+    void setAllowedHTTPMethod(std::vector<std::string> allowedMethod) {
+        if (allowedMethod[0] == "GET")
+            this->_allowedHTTPMethod |= HTTP::RM_GET; // TODO multiple method, check RM_GET name
+    };
+    void setCGIExtention(std::vector<std::string> cgiExt) { this->_cgiExtension = cgiExt; }
+    
 private:
     std::string _route;
     std::string _root;

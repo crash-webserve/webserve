@@ -6,7 +6,7 @@
 //      - port: Port number to open
 Connection::Connection(int port)
 : _client(false)
-, _port(port)
+, _hostPort(port)
 , _readEventTriggered(-1)
 , _writeEventTriggered(-1) {
     this->newSocket();
@@ -24,7 +24,7 @@ Connection::Connection(int ident, std::string addr, int port)
 : _client(true)
 , _ident(ident)
 , _addr(addr)
-, _port(port)
+, _hostPort(port)
 , _readEventTriggered(-1)
 , _writeEventTriggered(-1)
 , _closed(false) {
@@ -57,7 +57,7 @@ Connection* Connection::acceptClient() {
     Log::verbose("Connected from [%s:%d]", addr.c_str(), port);
     if (fcntl(clientfd, F_SETFL, O_NONBLOCK) < 0)
         throw std::runtime_error("fcntl Failed");
-    return new Connection(clientfd, addr, port);
+    return new Connection(clientfd, addr, this->_hostPort);
 }
 
 // The way how Connection class handles receive event.
@@ -165,6 +165,53 @@ void Connection::dispose() {
     this->addKeventOneshot(kqueue, 0);
 }
 
+std::string Connection::makeHeaderField(unsigned short fieldName) {
+    switch (fieldName)
+    {
+    case HTTP::DATE:
+        return makeDateHeaderField();
+    }
+    return ""; // TODO delete
+}
+
+// Find the current time based on GMT
+//  - Parameters(None)
+//  - Return
+//      Current time based on GMT(std::string)
+std::string Connection::makeDateHeaderField() {
+    std::string weekDay[7] = {"Sun", "Mon", "Tue", "Wen", "Thu" ,"Fri" ,"Sat"};
+    std::string Month[12] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+    
+    time_t rawTime;
+    struct tm *ptm;
+    std::string dateStr;
+
+    time(&rawTime);
+    ptm = gmtime(&rawTime);
+    dateStr = weekDay[ptm->tm_wday];
+    dateStr += ", ";
+    dateStr += std::to_string(ptm->tm_mday);
+    dateStr += " ";
+    dateStr += Month[ptm->tm_mon];
+    dateStr += " ";
+    dateStr += std::to_string(ptm->tm_year + 1900);
+    dateStr += " ";
+    if (ptm->tm_hour < 10)
+        dateStr += "0";
+    dateStr += std::to_string(ptm->tm_hour);
+    dateStr += ":";
+    if (ptm->tm_min < 10)
+        dateStr += "0";
+    dateStr += std::to_string(ptm->tm_min);
+    dateStr += ":";
+    if (ptm->tm_sec < 10)
+        dateStr += "0";
+    dateStr += std::to_string(ptm->tm_sec);
+    dateStr += " GMT";
+
+    return dateStr;
+}
+
 // Creates new Connection and set for the attribute.
 //  - Return(none)
 void Connection::newSocket() {
@@ -197,10 +244,10 @@ static void setAddrStruct(int port, sockaddr_in& addr_in) {
 void Connection::bindSocket() {
     sockaddr*   addr;
     sockaddr_in addr_in;
-    setAddrStruct(this->_port, addr_in);
+    setAddrStruct(this->_hostPort, addr_in);
     addr = reinterpret_cast<sockaddr*>(&addr_in);
     if (0 > bind(this->_ident, addr, sizeof(*addr))) {
-        throw;
+        throw; // TODO
     }
     Log::verbose("Connection ( %d ) bind succeed.", _ident);
 }

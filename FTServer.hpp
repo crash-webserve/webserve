@@ -44,7 +44,7 @@ public:
     void init();
     void initializeVirtualServers();
     void initParseConfig(std::string configfile);
-    void initializeConnection(int ports[], int size);
+    void initializeConnection(std::set<int>&  ports, int size);
 
     VirtualServer& getTargetVirtualServer(Connection& connection);
     void run();
@@ -66,6 +66,7 @@ private:
     VirtualServerConfigMap _defaultConfigs;
     VirtualServerVec       _vVirtualServers;
     ConnectionMap       _mConnection;
+    std::map<int, VirtualServer*> _defaultVirtualServers; // port별 기본 서버
     int             _kqueue;
     bool            _alive;
 

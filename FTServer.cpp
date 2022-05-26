@@ -83,18 +83,21 @@ void FTServer::init() {
     this->initializeVirtualServers();
     this->_kqueue = kqueue();
 
-    int     portsOpen[2] = {2000, 2020};
-    this->initializeConnection(portsOpen, 2);
+    std::set<int>     portsOpen;
+    for (VirtualServerVec::iterator itr = this->_vVirtualServers.begin();
+        itr != this->_vVirtualServers.end(); itr++) {
+        portsOpen.insert((*itr)->getPortNumber());
+    }
+    this->initializeConnection(portsOpen, portsOpen.size());
 }
 
 //  TODO Implement real behavior.
 //  Initialize all virtual servers from virtual server config set.
 void FTServer::initializeVirtualServers() {
-    //  VirtualServer* newVirtualServer = new VirtualServer("127.0.0.1", 2000, "localhost");
-    // NOTE only normal configs
     for (VirtualServerConfigIter itr = this->_defaultConfigs.begin(); itr != this->_defaultConfigs.end(); itr++) {
         VirtualServer* newVirtualServer = this->makeVirtualServer(itr->second);
         this->_vVirtualServers.push_back(newVirtualServer);
+        this->_defaultVirtualServers.insert(std::pair<int, VirtualServer *>(std::atoi(itr->first._port.c_str()), newVirtualServer));
     }
 }
 
@@ -104,26 +107,52 @@ VirtualServer*    FTServer::makeVirtualServer(VirtualServerConfig* virtualServer
     directiveContainer config = virtualServerConf->getConfigs();           // original config in server Block
     std::set<LocationConfig *> locs = virtualServerConf->getLocations();   // config per location block
 
-    // server block
-    // for (directiveContainer::iterator itr = config.begin(); itr != config.end(); itr++) {
-    //     std::cout << itr->first << " : ";
-    //     for (size_t i = 0; i < itr->second.size(); i++)
-    //         std::cout << itr->second[i] << " ";
-    //     std::cout << std::endl;
-    // }
-    // location block
-    // for (std::set<LocationConfig *>::iterator itr = locs.begin(); itr != locs.end(); itr++) {
-    //     std::cout << "path : " << (*itr)->getPath() << std::endl;
-    //     directiveContainer tmp = (*itr)->getDirectives();
-    //     for (directiveContainer::iterator itr2 = tmp.begin(); itr2 != tmp.end(); itr2++) {
-    //         std::cout << itr2->first << " : ";
-    //         for (size_t i = 0; i < itr2->second.size(); i++)
-    //             std::cout << itr2->second[i] << " ";
-    //         std::cout << std::endl;
-    //     }
-    // }
+    std::stringstream ss;
+    std::size_t cmbs;
+
     newVirtualServer = new VirtualServer(static_cast<port_t>(std::atoi(config["listen"].front().c_str())),
                             config["server_name"].front());
+
+    for (directiveContainer::iterator itr = config.begin(); itr != config.end(); itr++) {
+        if (!itr->first.compare("listen") || !itr->first.compare("server_name"))
+            continue;
+        if (!itr->first.compare("client_max_body_size")) {
+            ss << itr->second.front();
+            ss >> cmbs;
+            newVirtualServer->setClientMaxBodySize(cmbs);
+            ss.clear();
+        }
+        else {
+            for (size_t i = 0; i < itr->second.size(); i++)
+                newVirtualServer->setOtherDirective(itr->first, itr->second);
+        }
+    }
+
+    for (std::set<LocationConfig *>::iterator itr = locs.begin(); itr != locs.end(); itr++) {
+        directiveContainer lcDirect = (*itr)->getDirectives();
+        Location* newLocation = new Location();
+
+        // 고유 키 등록
+        newLocation->setRoute((*itr)->getPath());
+        for (directiveContainer::iterator itr2 = lcDirect.begin(); itr2 != lcDirect.end(); itr2++) {
+            if (!itr2->first.compare("autoindex") && !itr2->second.front().compare("on"))
+                newLocation->setAutoIndex(true);
+            else if (!itr2->first.compare("index")) {
+                newLocation->setIndex(itr2->second);
+            }
+            else if (!itr2->first.compare("limit_except")) {
+                newLocation->setAllowedHTTPMethod(itr2->second); 
+            }
+            else if (!itr2->first.compare("cgi")) {
+                newLocation->setCGIExtention(itr2->second);
+            }
+            else {
+                for (size_t i = 0; i < itr2->second.size(); i++)
+                    newVirtualServer->setOtherDirective(itr2->first, itr2->second);
+            }
+        }
+        newVirtualServer->appendLocation(newLocation);
+    }
     return newVirtualServer;
 }
 
@@ -131,17 +160,17 @@ VirtualServer*    FTServer::makeVirtualServer(VirtualServerConfig* virtualServer
 // TODO: make it works with actuall server config!
 //  - Parameter
 //  - Return(none)
-void FTServer::initializeConnection(int ports[], int size) {
+void FTServer::initializeConnection(std::set<int>& ports, int size) {
     Log::verbose("kqueue generated: ( %d )", this->_kqueue);
-    for (int i = 0; i < size; i++) {
-        Connection* newConnection = new Connection(ports[i]);
+    for (std::set<int>::iterator itr = ports.begin(); itr != ports.end(); itr++) {
+        Connection* newConnection = new Connection(*itr);
         this->_mConnection.insert(std::make_pair(newConnection->getIdent(), newConnection));
         try {
             newConnection->addKevent(this->_kqueue, EVFILT_READ, NULL);
         } catch(std::exception& exep) {
             Log::verbose(exep.what());
         }
-        Log::verbose("Connection Generated: [%d]", ports[i]);
+        Log::verbose("Connection Generated: [%d]", (*itr));
     }
 }
 
@@ -200,8 +229,14 @@ void FTServer::read(Connection* connection) {
 //  - Returns: Appropriate server to process client connection.
 VirtualServer& FTServer::getTargetVirtualServer(Connection& clientConnection) {
     //  TODO Implement real behavior. Change the return type from reference to pointer type.
-    (void)clientConnection;
-    return *this->_vVirtualServers[0];
+    int cntVirtualServers = this->_vVirtualServers.size();
+    const std::string* a = clientConnection.getRequest().getFirstHeaderFieldValueByName("Host");
+    for (int i = 0; i < cntVirtualServers; i++) {
+        if ((this->_vVirtualServers[i]->getPortNumber() == clientConnection.getPort()) &&
+            (this->_vVirtualServers[i]->getServerName() == (*a).substr(1, std::string::npos))) // TODO compare strings
+            return *this->_vVirtualServers[i];
+    }
+    return *this->_defaultVirtualServers[clientConnection.getPort()];
 }
 
 // Main loop procedure of ServerManager.

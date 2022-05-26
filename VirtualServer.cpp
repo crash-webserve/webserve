@@ -27,7 +27,7 @@ VirtualServer::VirtualServer()
 _name(""),
 _connection(nullptr)
 {
-}; 
+} 
 
 //  Constructor of VirtualServer.
 //  - Parameters
@@ -140,6 +140,7 @@ int VirtualServer::setOKGETResponse(Connection& clientConnection) {
     clientConnection.appendResponseMessage("\r\n");
 
     // TODO append header section
+    clientConnection.appendResponseMessage(clientConnection.makeHeaderField(HTTP::DATE));
 
     std::ifstream targetRepresentation(this->_targetRepresentationURI, std::ios_base::binary | std::ios_base::ate);
     if (!targetRepresentation.is_open()) {
@@ -154,64 +155,6 @@ int VirtualServer::setOKGETResponse(Connection& clientConnection) {
         clientConnection.appendResponseMessage(str.c_str());
 
     return 0;
-}
-
-// Add the certain environmental value to _CGIEnvironmentMap
-// (For enhancing code readability.)
-//  - Parameters:
-//      type: from where it getting the environment.
-//      key: environment key
-//      value: environment value
-//  - Return ( None )
-void VirtualServer::insertCGIEnvMap(int type, std::string key, std::string val) {
-    switch (type) {
-        case Literal:
-            this->_CGIEnvironmentMap.insert(std::make_pair(key, val));
-            break;
-        case FromHeader:
-            this->_CGIEnvironmentMap.insert(std::make_pair(
-                key,
-                *this->_connection->getRequest().getFirstHeaderFieldValueByName(val)
-            ));
-            break;
-        case FromConfig: // TODO: this still needs to be fixed
-            this->_CGIEnvironmentMap.insert(std::make_pair(
-                key,
-                *this->_connection->getRequest().getFirstHeaderFieldValueByName(val)
-            ));
-            break;
-        default:
-            assert("VirtualServer::insertCGIEnvMap, invalid type param.");
-    }
-}
-
-// Make an envivonments array for CGI Process
-//  - Return: envp, the array to pass through 3rd param on execve().
-char** VirtualServer::makeCGIEnvironmentArray() {
-    char** result;
-    std::string	element;
-
-    this->insertCGIEnvMap(FromHeader, "AUTH_TYPE", "Authorization");
-    this->insertCGIEnvMap(FromHeader, "CONTENT_TYPE", "Content-Type");
-    this->insertCGIEnvMap(FromHeader, "REMOTE_IDENT", "Authorization");
-    this->insertCGIEnvMap(FromHeader, "REMOTE_USER", "Authorization");
-    this->insertCGIEnvMap(FromHeader, "SERVER_NAME", "Hostname");
-
-    // TODO
-    // Add all environmental values required.
-
-    result = new char*[this->_CGIEnvironmentMap.size() + 1];
-	int	idx = 0;
-    for (StringMapIter iter = this->_CGIEnvironmentMap.begin();
-            iter != this->_CGIEnvironmentMap.end();
-            iter++) {
-		element = iter->first + "=" + iter->second;
-		result[idx] = new char[element.length() + 1];
-        strlcpy(result[idx], element.c_str(), element.length());
-        idx++;
-	}
-	result[idx] = NULL;
-	return result;
 }
 
 // Make CGI process to handle the query.

@@ -72,9 +72,12 @@ public:
     std::string getServerName() const { return this->_name; }
     void setPortNumber(port_t portNumber) { this->_portNumber = portNumber; }
     void setServerName(std::string serverName) { this->_name = serverName; }
-
     void setConnection(Connection* connection) { this->_connection = connection; };
-
+    void setClientMaxBodySize(std::size_t clientMaxBodySize) { this->_clientMaxBodySize = clientMaxBodySize; };
+    void setOtherDirective(std::string directiveName, std::vector<std::string> directiveValue) { 
+        _others.insert(make_pair(directiveName, directiveValue[0])); // TODO multi-value
+    };
+    void appendLocation(Location* lc) { this->_location.push_back(lc); };
     VirtualServer::ReturnCode processRequest(Connection& clientConnection);
 
 private:

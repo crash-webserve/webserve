@@ -1,5 +1,14 @@
 #include "Location.hpp"
 
+Location::Location():
+_route(""),
+_root(""),
+_index(""),
+_autoindex(false),
+_allowedHTTPMethod(0)
+{
+}
+
 //  Set representationPath for resource.(this->_route -> this->_root)
 //  - Parameters
 //      resourceURI: The resource path to convert to local path.
