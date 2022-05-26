@@ -35,7 +35,7 @@ _connection(nullptr)
 VirtualServer::VirtualServer(short portNumber, const std::string& name)
 : _portNumber(portNumber), _name(name) {
     _connection = nullptr;
-}
+};
 
 //  Process request from client.
 //  - Parameters
