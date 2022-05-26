@@ -233,7 +233,7 @@ VirtualServer& FTServer::getTargetVirtualServer(Connection& clientConnection) {
     const std::string* a = clientConnection.getRequest().getFirstHeaderFieldValueByName("Host");
     for (int i = 0; i < cntVirtualServers; i++) {
         if ((this->_vVirtualServers[i]->getPortNumber() == clientConnection.getPort()) &&
-            (this->_vVirtualServers[i]->getServerName() == (*a).substr(1, std::string::npos))) // TODO compare strings
+            (this->_vVirtualServers[i]->getServerName() == *a))
             return *this->_vVirtualServers[i];
     }
     return *this->_defaultVirtualServers[clientConnection.getPort()];

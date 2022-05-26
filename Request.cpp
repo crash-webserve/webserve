@@ -155,13 +155,21 @@ ParsingResult Request::parseHeader(const std::string& headerField) {
     std::istringstream iss(headerField);
     std::string name;
     std::string value;
+    char ch;
 
     if (!std::getline(iss, name, ':'))
         return PR_FAIL;
     if (name[name.length() - 1] == ' ')
         return PR_FAIL;
+    if (!iss.get(ch))
+        return PR_FAIL;
+    if (!(ch == '\x09' || ch == ' '))
+        iss.putback(ch);
     if (!std::getline(iss, value))
         return PR_FAIL;
+    ch = value[value.length() - 1];
+    if (ch == '\x09' || ch == ' ')
+        value.erase(value.length() - 1);
 
     this->_headerSection.push_back(new HeaderSectionElementType(name, value));
 
