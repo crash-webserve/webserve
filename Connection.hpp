@@ -63,7 +63,7 @@ public:
     bool isclient() { return this->_client; };
     int getIdent() { return this->_ident; };
     std::string getAddr() { return this->_addr; };
-    int getPort() { return this->_port; };
+    int getPort() { return this->_hostPort; };
     const Request& getRequest() const { return this->_request; };
     bool isClosed() { return this->_closed; };
     void appendResponseMessage(const std::string& message);
@@ -74,7 +74,7 @@ public:
 private:
     bool _client;
     int _ident;
-    int _port;
+    int _hostPort;
     std::string _addr;
     Request _request;
     Response _response;

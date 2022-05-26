@@ -83,19 +83,21 @@ void FTServer::init() {
     this->initializeVirtualServers();
     this->_kqueue = kqueue();
 
-    int     portsOpen[2] = {2000, 80};
-
-    this->initializeConnection(portsOpen, this->_vVirtualServers.size());
+    std::set<int>     portsOpen;
+    for (VirtualServerVec::iterator itr = this->_vVirtualServers.begin();
+        itr != this->_vVirtualServers.end(); itr++) {
+        portsOpen.insert((*itr)->getPortNumber());
+    }
+    this->initializeConnection(portsOpen, portsOpen.size());
 }
 
 //  TODO Implement real behavior.
 //  Initialize all virtual servers from virtual server config set.
 void FTServer::initializeVirtualServers() {
-    //  VirtualServer* newVirtualServer = new VirtualServer("127.0.0.1", 2000, "localhost");
-    // NOTE only normal configs
     for (VirtualServerConfigIter itr = this->_defaultConfigs.begin(); itr != this->_defaultConfigs.end(); itr++) {
         VirtualServer* newVirtualServer = this->makeVirtualServer(itr->second);
         this->_vVirtualServers.push_back(newVirtualServer);
+        this->_defaultVirtualServers.insert(std::pair<int, VirtualServer *>(std::atoi(itr->first._port.c_str()), newVirtualServer));
     }
 }
 
@@ -158,28 +160,17 @@ VirtualServer*    FTServer::makeVirtualServer(VirtualServerConfig* virtualServer
 // TODO: make it works with actuall server config!
 //  - Parameter
 //  - Return(none)
-void FTServer::initializeConnection(int ports[], int size) {
-    (void)ports;
+void FTServer::initializeConnection(std::set<int>& ports, int size) {
     Log::verbose("kqueue generated: ( %d )", this->_kqueue);
-    // for (int i = 0; i < size; i++) {
-    //     Connection* newConnection = new Connection(ports[i]);
-    //     this->_mConnection.insert(std::make_pair(newConnection->getIdent(), newConnection));
-    //     try {
-    //         newConnection->addKevent(this->_kqueue, EVFILT_READ, NULL);
-    //     } catch(std::exception& exep) {
-    //         Log::verbose(exep.what());
-    //     }
-    //     Log::verbose("Connection Generated: [%d]", ports[i]);
-    // }
-    for (int i = 0; i < size; i++) {
-        Connection* newConnection = new Connection(this->_vVirtualServers[i]->getPortNumber());
+    for (std::set<int>::iterator itr = ports.begin(); itr != ports.end(); itr++) {
+        Connection* newConnection = new Connection(*itr);
         this->_mConnection.insert(std::make_pair(newConnection->getIdent(), newConnection));
         try {
             newConnection->addKevent(this->_kqueue, EVFILT_READ, NULL);
         } catch(std::exception& exep) {
             Log::verbose(exep.what());
         }
-        Log::verbose("Connection Generated: [%d]", this->_vVirtualServers[i]->getPortNumber());
+        Log::verbose("Connection Generated: [%d]", (*itr));
     }
 }
 
@@ -243,10 +234,10 @@ VirtualServer& FTServer::getTargetVirtualServer(Connection& clientConnection) {
     const std::string* a = clientConnection.getRequest().getFirstHeaderFieldValueByName("Host");
     for (int i = 0; i < cntVirtualServers; i++) {
         if ((this->_vVirtualServers[i]->getPortNumber() == clientConnection.getPort()) &&
-            (this->_vVirtualServers[i]->getServerName() == (*a).substr(1, std::string::npos)))
+            (this->_vVirtualServers[i]->getServerName() == (*a).substr(1, std::string::npos))) // TODO compare strings
             return *this->_vVirtualServers[i];
     }
-    // return *this->_vVirtualServers[0];
+    return *this->_defaultVirtualServers[clientConnection.getPort()];
 }
 
 // Main loop procedure of ServerManager.

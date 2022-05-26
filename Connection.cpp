@@ -6,7 +6,7 @@
 //      - port: Port number to open
 Connection::Connection(int port)
 : _client(false)
-, _port(port)
+, _hostPort(port)
 , _readEventTriggered(-1)
 , _writeEventTriggered(-1) {
     this->newSocket();
@@ -24,7 +24,7 @@ Connection::Connection(int ident, std::string addr, int port)
 : _client(true)
 , _ident(ident)
 , _addr(addr)
-, _port(port)
+, _hostPort(port)
 , _readEventTriggered(-1)
 , _writeEventTriggered(-1)
 , _closed(false) {
@@ -46,18 +46,18 @@ Connection* Connection::acceptClient() {
     struct kevent   ev;
     int clientfd = accept(this->_ident, reinterpret_cast<sockaddr*>(&remoteaddr), &remoteaddrSize);
     std::string     addr;
-    std::string     port;
+    int             port;
 
     if (clientfd < 0) {
         throw std::runtime_error("accept() Failed");
         return NULL;
     }
     addr = inet_ntoa(remoteaddr.sin_addr);
-
-    Log::verbose("Connected from [%s:%d]", addr.c_str(), remoteaddr.sin_port);
+    port = ntohs(remoteaddr.sin_port);
+    Log::verbose("Connected from [%s:%d]", addr.c_str(), port);
     if (fcntl(clientfd, F_SETFL, O_NONBLOCK) < 0)
         throw std::runtime_error("fcntl Failed");
-    return new Connection(clientfd, addr, remoteaddr.sin_port);
+    return new Connection(clientfd, addr, this->_hostPort);
 }
 
 // The way how Connection class handles receive event.
@@ -244,7 +244,7 @@ static void setAddrStruct(int port, sockaddr_in& addr_in) {
 void Connection::bindSocket() {
     sockaddr*   addr;
     sockaddr_in addr_in;
-    setAddrStruct(this->_port, addr_in);
+    setAddrStruct(this->_hostPort, addr_in);
     addr = reinterpret_cast<sockaddr*>(&addr_in);
     if (0 > bind(this->_ident, addr, sizeof(*addr))) {
         throw; // TODO
