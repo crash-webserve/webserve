@@ -4,18 +4,20 @@
 #include "Connection.hpp"
 #include "constant.hpp"
 
-const char* StatusCode::EMPTY = "000";
-const char* StatusCode::OK = "200";
-const char* StatusCode::CREATED = "201";
-const char* StatusCode::MOVED_PERMANENTLY = "301";
-const char* StatusCode::BAD_REQUEST = "400";
-const char* StatusCode::FORBIDDEN = "403";
-const char* StatusCode::NOT_FOUND = "404";
-const char* StatusCode::METHOD_NOT_ALLOWED = "405";
-const char* StatusCode::LENGTH_REQUIRED = "411";
-const char* StatusCode::PAYLOAD_TOO_LARGE = "413";
-const char* StatusCode::INTERNAL_SERVER_ERROR = "500";
-const char* StatusCode::HTTP_VERSION_NOT_SUPPORTED = "505";
+const Status Status::_array[] = {
+    { "000", "default" },
+    { "200", "ok" },
+    { "201", "created" },
+    { "301", "moved permanently" },
+    { "400", "bad request" },
+    { "403", "forbidden" },
+    { "404", "not found" },
+    { "405", "method not allowed" },
+    { "411", "length required" },
+    { "413", "payload too large" },
+    { "500", "internal server error" },
+    { "505", "http version not supported" },
+};
 
 //  Default constructor of VirtualServer.
 //  - Parameters(None)
@@ -39,10 +41,11 @@ VirtualServer::VirtualServer(short portNumber, const std::string& name)
 //  - Parameters
 //      clientConnection: The connection of client requesting process.
 //      kqueueFD: The kqueue fd is where to add write event for response.
-void VirtualServer::processRequest(Connection& clientConnection) {
+//  - Return: See the type definition.
+VirtualServer::ReturnCode VirtualServer::processRequest(Connection& clientConnection) {
     const Request& request = clientConnection.getRequest();
 
-    this->setStatusCode(StatusCode::EMPTY);
+    this->setStatusCode(Status::_array[Status::SI_DEFAULT]._statusCode);
     switch (request.getMethod()) {
         case HTTP::RM_GET:
             this->processGETRequest(clientConnection);
@@ -62,6 +65,8 @@ void VirtualServer::processRequest(Connection& clientConnection) {
     }
 
     this->setResponseMessageByStatusCode(clientConnection);
+
+    return VirtualServer::RC_SUCCESS;
 }
 
 //  Process GET request.
@@ -79,8 +84,8 @@ void VirtualServer::processGETRequest(Connection& clientConnection) {
         }
     }
 
-    if (this->isStatusEmpty()) {
-        this->setStatusCode(StatusCode::NOT_FOUND);
+    if (this->isStatusDefault()) {
+        this->setStatusCode(Status::_array[Status::SI_NOT_FOUND]._statusCode);
         return;
     }
 }
@@ -108,7 +113,7 @@ void VirtualServer::processDELETERequest(Connection& clientConnection) {
 //  - Return(None)
 void VirtualServer::processLocation(const Request& request, const Location& location) {
     if (!location.isRequestMethodAllowed(request.getMethod())) {
-        this->setStatusCode(StatusCode::METHOD_NOT_ALLOWED);
+        this->setStatusCode(Status::_array[Status::SI_METHOD_NOT_ALLOWED]._statusCode);
         return;
     }
 
@@ -120,7 +125,7 @@ void VirtualServer::processLocation(const Request& request, const Location& loca
 //  - Parameters clientConnection: The Connection object of client who is requesting.
 //  - Return(None)
 void VirtualServer::setResponseMessageByStatusCode(Connection& clientConnection) {
-    if (this->isStatusCode(StatusCode::OK))
+    if (this->isStatusCode(Status::_array[Status::SI_OK]._statusCode))
         setOKGETResponse(clientConnection);
 }
 
@@ -129,15 +134,16 @@ void VirtualServer::setResponseMessageByStatusCode(Connection& clientConnection)
 //  - Return(None)
 int VirtualServer::setOKGETResponse(Connection& clientConnection) {
     clientConnection.appendResponseMessage("HTTP/1.1 ");
-    clientConnection.appendResponseMessage(StatusCode::OK);
-    clientConnection.appendResponseMessage(" OK\r\n");
+    clientConnection.appendResponseMessage(Status::_array[Status::SI_OK]._statusCode);
+    clientConnection.appendResponseMessage(Status::_array[Status::SI_OK]._reasonPhrase);
+    clientConnection.appendResponseMessage("\r\n");
 
     // TODO append header section
     clientConnection.appendResponseMessage(clientConnection.makeHeaderField(HTTP::DATE));
 
     std::ifstream targetRepresentation(this->_targetRepresentationURI, std::ios_base::binary | std::ios_base::ate);
     if (!targetRepresentation.is_open()) {
-        setStatusCode(StatusCode::INTERNAL_SERVER_ERROR);
+        setStatusCode(Status::_array[Status::SI_INTERNAL_SERVER_ERROR]._statusCode);
         return -1;
     }
 
