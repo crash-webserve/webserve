@@ -33,7 +33,7 @@ _connection(nullptr)
 VirtualServer::VirtualServer(short portNumber, const std::string& name)
 : _portNumber(portNumber), _name(name) {
     _connection = nullptr;
-}
+};
 
 //  Process request from client.
 //  - Parameters
@@ -133,6 +133,7 @@ int VirtualServer::setOKGETResponse(Connection& clientConnection) {
     clientConnection.appendResponseMessage(" OK\r\n");
 
     // TODO append header section
+    clientConnection.appendResponseMessage(clientConnection.makeHeaderField(HTTP::DATE));
 
     std::ifstream targetRepresentation(this->_targetRepresentationURI, std::ios_base::binary | std::ios_base::ate);
     if (!targetRepresentation.is_open()) {

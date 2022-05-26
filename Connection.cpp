@@ -46,12 +46,14 @@ Connection* Connection::acceptClient() {
     struct kevent   ev;
     int clientfd = accept(this->_ident, reinterpret_cast<sockaddr*>(&remoteaddr), &remoteaddrSize);
     std::string     addr;
+    std::string     port;
 
     if (clientfd < 0) {
         throw std::runtime_error("accept() Failed");
         return NULL;
     }
     addr = inet_ntoa(remoteaddr.sin_addr);
+
     Log::verbose("Connected from [%s:%d]", addr.c_str(), remoteaddr.sin_port);
     if (fcntl(clientfd, F_SETFL, O_NONBLOCK) < 0)
         throw std::runtime_error("fcntl Failed");
@@ -163,6 +165,53 @@ void Connection::dispose() {
     this->addKeventOneshot(kqueue, 0);
 }
 
+std::string Connection::makeHeaderField(unsigned short fieldName) {
+    switch (fieldName)
+    {
+    case HTTP::DATE:
+        return makeDateHeaderField();
+    }
+    return ""; // TODO delete
+}
+
+// Find the current time based on GMT
+//  - Parameters(None)
+//  - Return
+//      Current time based on GMT(std::string)
+std::string Connection::makeDateHeaderField() {
+    std::string weekDay[7] = {"Sun", "Mon", "Tue", "Wen", "Thu" ,"Fri" ,"Sat"};
+    std::string Month[12] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+    
+    time_t rawTime;
+    struct tm *ptm;
+    std::string dateStr;
+
+    time(&rawTime);
+    ptm = gmtime(&rawTime);
+    dateStr = weekDay[ptm->tm_wday];
+    dateStr += ", ";
+    dateStr += std::to_string(ptm->tm_mday);
+    dateStr += " ";
+    dateStr += Month[ptm->tm_mon];
+    dateStr += " ";
+    dateStr += std::to_string(ptm->tm_year + 1900);
+    dateStr += " ";
+    if (ptm->tm_hour < 10)
+        dateStr += "0";
+    dateStr += std::to_string(ptm->tm_hour);
+    dateStr += ":";
+    if (ptm->tm_min < 10)
+        dateStr += "0";
+    dateStr += std::to_string(ptm->tm_min);
+    dateStr += ":";
+    if (ptm->tm_sec < 10)
+        dateStr += "0";
+    dateStr += std::to_string(ptm->tm_sec);
+    dateStr += " GMT";
+
+    return dateStr;
+}
+
 // Creates new Connection and set for the attribute.
 //  - Return(none)
 void Connection::newSocket() {
@@ -198,7 +247,7 @@ void Connection::bindSocket() {
     setAddrStruct(this->_port, addr_in);
     addr = reinterpret_cast<sockaddr*>(&addr_in);
     if (0 > bind(this->_ident, addr, sizeof(*addr))) {
-        throw;
+        throw; // TODO
     }
     Log::verbose("Connection ( %d ) bind succeed.", socket);
 }
