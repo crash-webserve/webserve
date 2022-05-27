@@ -71,8 +71,6 @@ inline const char* getStatusReasonBy(HTTP::Status::Index index) {
 //      _others: Variable for additional data.
 //          std::string _defaultErrorPagePath: The path used to set error pages.
 //
-//      _connection: The connection to accept client for this server.
-//
 //      _statusCode: Store status code of server.
 //      _targetRepresentationURI: Store target representation URI.
 class VirtualServer {
@@ -104,41 +102,17 @@ private:
 
     std::map<std::string, std::string> _others;
 
-    const HTTP::Status* _status;
     std::string _targetRepresentationURI;
 
-    void setStatus(HTTP::Status::Index index) { this->_status = &HTTP::getStatusBy(index); };
+    int processGET(Connection& clientConnection);
+    int processPOST(Connection& clientConnection);
+    int processDELETE(Connection& clientConnection);
 
-    bool isStatus(HTTP::Status::Index statusIndex);
-    bool isStatusDefault();
+    void setStatusLine(Connection& clientConnection, HTTP::Status::Index index);
 
-    void processLocation(const Request& request, const Location& location);
-
-    void processPOSTRequest(const Request& request);
-    void processDELETERequest(const Request& request);
-
-    void setResponseMessageByStatus(Connection& clientConnection);
-    void setStatusLine(Connection& clientConnection);
-    int setGETResponse(Connection& clientConnection);
-    void setPOSTResponse(Connection& clientConnection);
-    void setDELETEResponse(Connection& clientConnection);
     void set404Response(Connection& clientConnection);
+    void set405Response(Connection& clientConnection);
     void set500Response(Connection& clientConnection);
 };  // VirtualServer
-
-//  Return whether the VirtualServer object's _statusCode is same with statusCode.
-//  - Parameters statusCode: the status code to compare with virtual server one.
-//  - Return: Whether the VirtualServer object's _statusCode is same with statusCode.
-inline bool VirtualServer::isStatus(HTTP::Status::Index index) {
-    const HTTP::Status& status = HTTP::getStatusBy(index);
-    return this->_status == &status;
-}
-
-//  Return whether the VirtualServer object's _statusCode is same with default statusCode.
-//  - Parameters statusCode(None)
-//  - Return: Whether the VirtualServer object's _statusCode is same with default statusCode.
-inline bool VirtualServer::isStatusDefault() {
-    return this->isStatus(HTTP::Status::I_000);
-}
 
 #endif  // VIRTUALSERVER_HPP_
