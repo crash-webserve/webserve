@@ -179,36 +179,11 @@ std::string Connection::makeHeaderField(unsigned short fieldName) {
 //  - Return
 //      Current time based on GMT(std::string)
 std::string Connection::makeDateHeaderField() {
-    std::string weekDay[7] = {"Sun", "Mon", "Tue", "Wen", "Thu" ,"Fri" ,"Sat"};
-    std::string Month[12] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
-    
-    time_t rawTime;
-    struct tm *ptm;
-    std::string dateStr;
-
-    time(&rawTime);
-    ptm = gmtime(&rawTime);
-    dateStr = weekDay[ptm->tm_wday];
-    dateStr += ", ";
-    dateStr += std::to_string(ptm->tm_mday);
-    dateStr += " ";
-    dateStr += Month[ptm->tm_mon];
-    dateStr += " ";
-    dateStr += std::to_string(ptm->tm_year + 1900);
-    dateStr += " ";
-    if (ptm->tm_hour < 10)
-        dateStr += "0";
-    dateStr += std::to_string(ptm->tm_hour);
-    dateStr += ":";
-    if (ptm->tm_min < 10)
-        dateStr += "0";
-    dateStr += std::to_string(ptm->tm_min);
-    dateStr += ":";
-    if (ptm->tm_sec < 10)
-        dateStr += "0";
-    dateStr += std::to_string(ptm->tm_sec);
-    dateStr += " GMT";
-
+    char cDate[1000];
+    time_t rr = time(0);
+    struct tm tm = *gmtime(&rr);
+    strftime(cDate, sizeof(cDate), "%a, %d %b %Y %H:%M:%S GMT", &tm);
+    std::string dateStr = cDate;
     return dateStr;
 }
 
