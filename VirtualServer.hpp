@@ -13,6 +13,8 @@
 
 typedef unsigned short port_t;
 
+namespace HTTP {
+
 //  status code와 reason phrase를 저장하기 위한 기본 단위 구조체
 //  - Member
 //      enum Index: Status::_array 배열의 index로 넣어줄 용도의 상수
@@ -22,17 +24,18 @@ typedef unsigned short port_t;
 //      _reasonPhrase: Status 객체의 reason phrase
 struct Status {
     enum Index {
-        SI_DEFAULT,
-        SI_OK,
-        SI_CREATED,
-        SI_MOVED_PERMANENTLY,
-        SI_BAD_REQUEST,
-        SI_FORBIDDEN,
-        SI_NOT_FOUND,
-        SI_METHOD_NOT_ALLOWED,
-        SI_LENGTH_REQUIRED,
-        SI_PAYLOAD_TOO_LARGE,
-        SI_INTERNAL_SERVER_ERROR,
+        I_000,
+        I_200,
+        I_201,
+        I_301,
+        I_400,
+        I_403,
+        I_404,
+        I_405,
+        I_411,
+        I_413,
+        I_500,
+        I_505,
     };
 
     static const Status _array[];
@@ -40,6 +43,20 @@ struct Status {
     const char* _statusCode;
     const char* _reasonPhrase;
 };  // Status
+
+inline const HTTP::Status& getStatusBy(HTTP::Status::Index index) {
+    return HTTP::Status::_array[index];
+}
+
+inline const char* getStatusCodeBy(HTTP::Status::Index index) {
+    return HTTP::getStatusBy(index)._statusCode;
+}
+
+inline const char* getStatusReasonBy(HTTP::Status::Index index) {
+    return HTTP::getStatusBy(index)._reasonPhrase;
+}
+
+}  // HTTP
 
 //  TODO Add member variable from server config.
 //  VirtualServer is the entity processing request from client.
@@ -54,8 +71,6 @@ struct Status {
 //      _others: Variable for additional data.
 //          std::string _defaultErrorPagePath: The path used to set error pages.
 //
-//      _connection: The connection to accept client for this server.
-//
 //      _statusCode: Store status code of server.
 //      _targetRepresentationURI: Store target representation URI.
 class VirtualServer {
@@ -66,13 +81,12 @@ public:
     };  // ReturnCode
 
     VirtualServer();
-    VirtualServer(short portNumber, const std::string& name);
+    VirtualServer(port_t portNumber, const std::string& name);
 
     port_t getPortNumber() const { return this->_portNumber; }
     std::string getServerName() const { return this->_name; }
     void setPortNumber(port_t portNumber) { this->_portNumber = portNumber; }
     void setServerName(std::string serverName) { this->_name = serverName; }
-    void setConnection(Connection* connection) { this->_connection = connection; };
     void setClientMaxBodySize(std::size_t clientMaxBodySize) { this->_clientMaxBodySize = clientMaxBodySize; };
     void setOtherDirective(std::string directiveName, std::vector<std::string> directiveValue) { 
         _others.insert(make_pair(directiveName, directiveValue[0])); // TODO multi-value
@@ -88,25 +102,13 @@ private:
 
     std::map<std::string, std::string> _others;
 
-    Connection* _connection;
-
-    char _statusCode[4];
     std::string _targetRepresentationURI;
 
-    void setStatusCode(const char* statusCode) { std::memcpy(this->_statusCode, statusCode, 4); };
+    int processGET(Connection& clientConnection);
+    int processPOST(Connection& clientConnection);
+    int processDELETE(Connection& clientConnection);
 
-    bool isStatusCode(const char* statusCode);
-    bool isStatusDefault();
-
-    void processGETRequest(Connection& clientConnection);
-    void processPOSTRequest(Connection& clientConnection);
-    void processDELETERequest(Connection& clientConnection);
-
-    void processLocation(const Request& request, const Location& location);
-
-    void setResponseMessageByStatusCode(Connection& clientConnection);
-
-    int setOKGETResponse(Connection& clientConnection);
+    void setStatusLine(Connection& clientConnection, HTTP::Status::Index index);
 
 
     enum {
@@ -127,20 +129,9 @@ private:
     char** makeCGIEnvironmentArray();
     void passCGI(Connection& clientConnection, int kqueueFD);
 
+    void set404Response(Connection& clientConnection);
+    void set405Response(Connection& clientConnection);
+    void set500Response(Connection& clientConnection);
 };  // VirtualServer
-
-//  Return whether the VirtualServer object's _statusCode is same with statusCode.
-//  - Parameters statusCode: the status code to compare with virtual server one.
-//  - Return: Whether the VirtualServer object's _statusCode is same with statusCode.
-inline bool VirtualServer::isStatusCode(const char* statusCode) {
-    return memcmp(this->_statusCode, statusCode, 4) == 0;
-}
-
-//  Return whether the VirtualServer object's _statusCode is same with default statusCode.
-//  - Parameters statusCode(None)
-//  - Return: Whether the VirtualServer object's _statusCode is same with default statusCode.
-inline bool VirtualServer::isStatusDefault() {
-    return memcmp(this->_statusCode, Status::_array[Status::SI_DEFAULT]._statusCode, 4) == 0;
-}
 
 #endif  // VIRTUALSERVER_HPP_

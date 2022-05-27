@@ -6,6 +6,14 @@ Response::Response()
 : _sendBegin(NULL)
 , _message("") { }
 
+//  clear message.
+//  - Parameter(None)
+//  - Return(None)
+void Response::clearMessage() {
+    this->_message.clear();
+    this->_sendBegin = NULL;
+}
+
 //  Append message to response message.
 //  - Parameters
 //      message: A message to append.
