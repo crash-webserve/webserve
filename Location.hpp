@@ -24,9 +24,9 @@ public:
     void getRepresentationPath(const std::string& resourceURI, std::string& representationPath) const;
 
     std::string getRoute() { return this->_route; };
-    std::string getRoot() { return this->_root; };
-    std::string getIndex() { return this->_index; };
-    bool getAutoIndex() { return this->_autoindex; };
+    std::string getRoot() const { return this->_root; };
+    std::string getIndex() const { return this->_index; };
+    bool getAutoIndex() const { return this->_autoindex; };
     char getAllowedHTTPMethod() { return this->_allowedHTTPMethod; };
     std::vector<std::string> getCGIExtention() { return this->_cgiExtension; }
 

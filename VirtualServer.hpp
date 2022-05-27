@@ -72,7 +72,6 @@ inline const char* getStatusReasonBy(HTTP::Status::Index index) {
 //          std::string _defaultErrorPagePath: The path used to set error pages.
 //
 //      _statusCode: Store status code of server.
-//      _targetRepresentationURI: Store target representation URI.
 class VirtualServer {
 public:
     enum ReturnCode {
@@ -102,17 +101,16 @@ private:
 
     std::map<std::string, std::string> _others;
 
-    std::string _targetRepresentationURI;
-
     int processGET(Connection& clientConnection);
     int processPOST(Connection& clientConnection);
     int processDELETE(Connection& clientConnection);
 
     void setStatusLine(Connection& clientConnection, HTTP::Status::Index index);
 
-    void set404Response(Connection& clientConnection);
-    void set405Response(Connection& clientConnection);
-    void set500Response(Connection& clientConnection);
+    int set404Response(Connection& clientConnection);
+    int set405Response(Connection& clientConnection);
+    int set500Response(Connection& clientConnection);
+    int setListResponse(Connection& clientConnection, const std::string& path);
 };  // VirtualServer
 
 #endif  // VIRTUALSERVER_HPP_

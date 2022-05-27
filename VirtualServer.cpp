@@ -1,6 +1,8 @@
 #include <fstream>
-#include <cstdio>
+#include <sstream>
 #include <cstring>
+#include <sys/stat.h>
+#include <dirent.h>
 #include "VirtualServer.hpp"
 #include "Connection.hpp"
 #include "constant.hpp"
@@ -66,76 +68,162 @@ VirtualServer::ReturnCode VirtualServer::processRequest(Connection& clientConnec
     return VirtualServer::RC_SUCCESS;
 }
 
+//  Process GET request.
+//  - Parameters request: The request to process.
+//  - Return(None)
 int VirtualServer::processGET(Connection& clientConnection) {
     const Request& request = clientConnection.getRequest();
     const std::string& targetResourceURI = request.getTargetResourceURI();
+    struct stat buf;
+    std::string targetRepresentationURI;
 
-    for (std::vector<Location*>::const_iterator iter = this->_location.begin(); iter != this->_location.end(); ++iter) {
+    std::vector<Location*>::const_iterator iter;
+    for (iter = this->_location.begin(); iter != this->_location.end(); ++iter) {
         const Location& location = **iter;
 
-        if (location.isRouteMatch(targetResourceURI)) {
-            if (!location.isRequestMethodAllowed(request.getMethod())) {
-                this->set405Response(clientConnection);
-                return 0;
-            }
+        if (!location.isRouteMatch(targetResourceURI))
+            continue;
 
-            this->set404Response(clientConnection); // TODO 강제로 404 만드는 임시 코드
-            return 0;   // TODO 임시 코드
+        location.getRepresentationPath(targetResourceURI, targetRepresentationURI);
+        if (stat(targetRepresentationURI.c_str(), &buf) == 0
+                && (buf.st_mode & S_IFDIR) != 0) {
+            if (!location.isRequestMethodAllowed(request.getMethod()))
+                return this->set405Response(clientConnection);
 
-            const std::string& targetResourceURI = request.getTargetResourceURI();
-            location.getRepresentationPath(targetResourceURI, this->_targetRepresentationURI);
-            // TODO 만약 _targetRepresentationURI가 존재하는 파일이라면 상태를 200으로 설정
-            // TODO (추측) 만약 _targetRepresentationURI가 존재하지 않는 파일일 경우 index에 정의된 파일로 설정하기. 그것도 없으면 404.(index 관련 로직 조사 필요 POST라면? DELETE라면?)
-            break;
+            this->setStatusLine(clientConnection, Status::I_200);
+
+            // TODO 적절한 헤더 필드 추가하기(content-length)
+            clientConnection.appendResponseMessage("Date: ");
+            clientConnection.appendResponseMessage(clientConnection.makeHeaderField(HTTP::DATE));
+            clientConnection.appendResponseMessage("\r\n\r\n");
+
+            std::ifstream targetRepresentation(targetRepresentationURI, std::ios_base::binary | std::ios_base::ate);
+            if (!targetRepresentation.is_open())
+                return -1;
+
+            std::ifstream::pos_type size = targetRepresentation.tellg();
+            std::string str(size, '\0');
+            targetRepresentation.seekg(0);
+            if (targetRepresentation.read(&str[0], size))
+                clientConnection.appendResponseMessage(str.c_str());
+
+            targetRepresentation.close();
+
+            return 0;
         }
+
+        if (stat(location.getIndex().c_str(), &buf) == 0
+                && (buf.st_mode & S_IFDIR) != 0) {
+            this->setStatusLine(clientConnection, Status::I_200);
+
+            // TODO 적절한 헤더 필드 추가하기(content-length)
+            clientConnection.appendResponseMessage("Date: ");
+            clientConnection.appendResponseMessage(clientConnection.makeHeaderField(HTTP::DATE));
+            clientConnection.appendResponseMessage("\r\n\r\n");
+
+            std::ifstream targetRepresentation(location.getIndex(), std::ios_base::binary | std::ios_base::ate);
+            if (!targetRepresentation.is_open())
+                return -1;
+
+            std::ifstream::pos_type size = targetRepresentation.tellg();
+            std::string str(size, '\0');
+            targetRepresentation.seekg(0);
+            if (targetRepresentation.read(&str[0], size))
+                clientConnection.appendResponseMessage(str.c_str());
+
+            targetRepresentation.close();
+
+            return 0;
+        }
+
+        if (location.getAutoIndex())
+            return this->setListResponse(clientConnection, location.getRoot());
     }
 
-    this->setStatusLine(clientConnection, Status::I_200);
-
-    // TODO 적절한 헤더 필드 추가하기(content-length)
-    clientConnection.appendResponseMessage("Date: ");
-    clientConnection.appendResponseMessage(clientConnection.makeHeaderField(HTTP::DATE));
-    clientConnection.appendResponseMessage("\r\n\r\n");
-
-    std::ifstream targetRepresentation(this->_targetRepresentationURI, std::ios_base::binary | std::ios_base::ate);
-    if (!targetRepresentation.is_open())
-        return -1;
-
-    std::ifstream::pos_type size = targetRepresentation.tellg();
-    std::string str(size, '\0');
-    targetRepresentation.seekg(0);
-    if (targetRepresentation.read(&str[0], size))
-        clientConnection.appendResponseMessage(str.c_str());
-
-    return 0;
+    return this->set404Response(clientConnection);
 }
 
-//  Process POST request's unique work.
-//  If the request method is not POST, do nothing.
+//  Process POST request.
 //  - Parameters request: The request to process.
 //  - Return(None)
 int VirtualServer::processPOST(Connection& clientConnection) {
-    // TODO implement
-    std::ofstream out(this->_targetRepresentationURI.c_str());
-    if (!out.is_open())
-        return -1;
+    const Request& request = clientConnection.getRequest();
+    const std::string& targetResourceURI = request.getTargetResourceURI();
+    std::string targetRepresentationURI;
 
-    const std::string& requestBody = clientConnection.getRequest().getBody();
-    out << requestBody;
-    out.close();
+    std::vector<Location*>::const_iterator iter;
+    for (iter = this->_location.begin(); iter != this->_location.end(); ++iter) {
+        const Location& location = **iter;
 
-    return 0;
+        if (!location.isRouteMatch(targetResourceURI))
+            continue;
+
+        location.getRepresentationPath(targetResourceURI, targetRepresentationURI);
+        if (!location.isRequestMethodAllowed(request.getMethod()))
+            return this->set405Response(clientConnection);
+
+        std::ofstream out(targetRepresentationURI.c_str());
+        if (!out.is_open())
+            return -1;
+
+        const std::string& requestBody = clientConnection.getRequest().getBody();
+        out << requestBody;
+        out.close();
+
+        this->setStatusLine(clientConnection, Status::I_200);
+
+        // TODO 적절한 헤더 필드 추가하기(content-length)
+        clientConnection.appendResponseMessage("Date: ");
+        clientConnection.appendResponseMessage(clientConnection.makeHeaderField(HTTP::DATE));
+        clientConnection.appendResponseMessage("\r\n\r\n");
+
+        // TODO 적절한 바디 생성하기
+
+        return 0;
+    }
+
+    return this->set405Response(clientConnection);
 }
 
-//  Process DELETE request's unique work.
-//  If the request method is not DELETE, do nothing.
+//  Process DELETE request.
 //  - Parameters request: The request to process.
 //  - Return(None)
 int VirtualServer::processDELETE(Connection& clientConnection) {
-    // TODO implement
-    unlink(this->_targetRepresentationURI.c_str());
+    const Request& request = clientConnection.getRequest();
+    const std::string& targetResourceURI = request.getTargetResourceURI();
+    struct stat buf;
+    std::string targetRepresentationURI;
 
-    return 0;
+    std::vector<Location*>::const_iterator iter;
+    for (iter = this->_location.begin(); iter != this->_location.end(); ++iter) {
+        const Location& location = **iter;
+
+        if (!location.isRouteMatch(targetResourceURI))
+            continue;
+
+        location.getRepresentationPath(targetResourceURI, targetRepresentationURI);
+        if (stat(targetRepresentationURI.c_str(), &buf) == 0
+                && (buf.st_mode & S_IFDIR) != 0) {
+            if (!location.isRequestMethodAllowed(request.getMethod()))
+                return this->set405Response(clientConnection);
+
+            if (unlink(targetRepresentationURI.c_str()) == -1)
+                return this->set500Response(clientConnection);
+
+            this->setStatusLine(clientConnection, Status::I_200);
+
+            // TODO 적절한 헤더 필드 추가하기(content-length)
+            clientConnection.appendResponseMessage("Date: ");
+            clientConnection.appendResponseMessage(clientConnection.makeHeaderField(HTTP::DATE));
+            clientConnection.appendResponseMessage("\r\n\r\n");
+
+            // TODO 적절한 바디 설정하기
+
+            return 0;
+        }
+    }
+
+    return this->set404Response(clientConnection);
 }
 
 //  Set status line to response of clientConnection.
@@ -151,7 +239,7 @@ void VirtualServer::setStatusLine(Connection& clientConnection, Status::Index in
 //  set response message with 404 status.
 //  - Parameters clientConnection: The client connection.
 //  - Return(None)
-void VirtualServer::set404Response(Connection& clientConnection) {
+int VirtualServer::set404Response(Connection& clientConnection) {
     clientConnection.clearResponseMessage();
     this->setStatusLine(clientConnection, Status::I_404);
 
@@ -159,12 +247,14 @@ void VirtualServer::set404Response(Connection& clientConnection) {
     clientConnection.appendResponseMessage("Date: ");
     clientConnection.appendResponseMessage(clientConnection.makeHeaderField(HTTP::DATE));
     clientConnection.appendResponseMessage("\r\n\r\n");
+
+    return 0;
 }
 
 //  set response message with 405 status.
 //  - Parameters clientConnection: The client connection.
 //  - Return(None)
-void VirtualServer::set405Response(Connection& clientConnection) {
+int VirtualServer::set405Response(Connection& clientConnection) {
     clientConnection.clearResponseMessage();
     this->setStatusLine(clientConnection, Status::I_405);
 
@@ -172,17 +262,55 @@ void VirtualServer::set405Response(Connection& clientConnection) {
     clientConnection.appendResponseMessage("Date: ");
     clientConnection.appendResponseMessage(clientConnection.makeHeaderField(HTTP::DATE));
     clientConnection.appendResponseMessage("\r\n\r\n");
+
+    return 0;
 }
 
 //  set response message with 500 status.
 //  - Parameters clientConnection: The client connection.
 //  - Return(None)
-void VirtualServer::set500Response(Connection& clientConnection) {
+int VirtualServer::set500Response(Connection& clientConnection) {
     clientConnection.clearResponseMessage();
     this->setStatusLine(clientConnection, Status::I_500);
-    //
+
     // TODO append header section and body
     clientConnection.appendResponseMessage("Date: ");
     clientConnection.appendResponseMessage(clientConnection.makeHeaderField(HTTP::DATE));
     clientConnection.appendResponseMessage("\r\n\r\n");
+
+    return 0;
+}
+
+int VirtualServer::setListResponse(Connection& clientConnection, const std::string& path) {
+    clientConnection.clearResponseMessage();
+    this->setStatusLine(clientConnection, Status::I_200);
+
+    // TODO 필요에 따라 헤더 추가하기
+    clientConnection.appendResponseMessage("Transfer-Encoding: chunked\r\n");
+    clientConnection.appendResponseMessage("Content-Type: text/plain");
+    clientConnection.appendResponseMessage("Date: ");
+    clientConnection.appendResponseMessage(clientConnection.makeHeaderField(HTTP::DATE));
+    clientConnection.appendResponseMessage("\r\n\r\n");
+
+    DIR* dir = opendir(path.c_str());
+    if (dir == NULL)
+        return -1;
+
+    while (true) {
+        const struct dirent* entry = readdir(dir);
+        if (entry == NULL)
+            break;
+
+        std::stringstream iss;
+        iss << entry->d_namlen + 1;
+        clientConnection.appendResponseMessage(iss.str().c_str());
+        clientConnection.appendResponseMessage("\r\n");
+        clientConnection.appendResponseMessage(entry->d_name);
+        clientConnection.appendResponseMessage("\n\r\n");
+    }
+    clientConnection.appendResponseMessage("0\r\n\r\n");
+
+    closedir(dir);
+
+    return 0;
 }
