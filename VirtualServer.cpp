@@ -195,8 +195,7 @@ void VirtualServer::set404Response(Connection& clientConnection) {
     // TODO implement
     clientConnection.appendResponseMessage("Date: ");
     clientConnection.appendResponseMessage(clientConnection.makeHeaderField(HTTP::DATE));
-    clientConnection.appendResponseMessage("\r\n");
-    clientConnection.appendResponseMessage("\r\n");
+    clientConnection.appendResponseMessage("\r\n\r\n");
 }
 
 //  set response message with 500 status.
