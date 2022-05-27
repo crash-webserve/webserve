@@ -230,10 +230,10 @@ void FTServer::read(Connection* connection) {
 VirtualServer& FTServer::getTargetVirtualServer(Connection& clientConnection) {
     //  TODO Implement real behavior. Change the return type from reference to pointer type.
     int cntVirtualServers = this->_vVirtualServers.size();
-    const std::string* a = clientConnection.getRequest().getFirstHeaderFieldValueByName("Host");
+    const std::string* tHostName = clientConnection.getRequest().getFirstHeaderFieldValueByName("Host");
     for (int i = 0; i < cntVirtualServers; i++) {
         if ((this->_vVirtualServers[i]->getPortNumber() == clientConnection.getPort()) &&
-            (this->_vVirtualServers[i]->getServerName() == *a))
+            (this->_vVirtualServers[i]->getServerName() == *tHostName))
             return *this->_vVirtualServers[i];
     }
     return *this->_defaultVirtualServers[clientConnection.getPort()];
