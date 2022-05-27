@@ -21,7 +21,7 @@ FTServer::~FTServer() {
     }
 
     for (VirtualServerConfigIter itr = _defaultConfigs.begin(); itr != _defaultConfigs.end(); ++itr) {
-        delete itr->second;
+        delete (*itr);
     }
 
     Log::verbose("All Connections has been deleted.");
@@ -40,7 +40,8 @@ void FTServer::initParseConfig(std::string filePath) {
     std::string         confLine = "";
     std::string         token;
     VirtualServerConfig        *sc;
-
+    std::set<ServerConfigKey> checkDuplicate;
+    
     fs.open(filePath);
     if (fs.is_open()) {
         while (getline(fs, confLine)) {
@@ -51,23 +52,28 @@ void FTServer::initParseConfig(std::string filePath) {
                 continue;
             }
             else if (token == "server") {
+                ServerConfigKey key;
+                directiveContainer tConfigs;
                 sc = new VirtualServerConfig();
                 if (!sc->parsing(fs, ss, confLine)) // fstream, stringstream를 전달해주는 방식으로 진행
                     std::cerr << "not parsing config\n"; // 각 요소별 동적할당 해제시켜주는게 중요
-                ServerConfigKey key;
-                directiveContainer tConfigs = sc->getConfigs();
+                tConfigs = sc->getConfigs();
                 if (tConfigs.find("server_name") != tConfigs.end())
                     key._server_name.push_back(tConfigs.find("server_name")->second[0]); // 가장 먼저 입력된 server_name 1개만
                 else
-                    key._server_name.push_back(""); // server_name 비어있는 경우 "" 설정(안건)
+                    key._server_name.push_back(""); // TODO server_name 비어있는 경우 "" 설정
                 if (tConfigs.find("listen") != tConfigs.end())
-                    key._port = tConfigs.find("listen")->second[0]; // server_name이랑 port 갖고와서 _defaultconfig insert할 때 key로 넣어줘야함
+                    key._port = tConfigs.find("listen")->second[0];
                 else {
                     std::cerr << "not find listen value\n";
                     delete sc;
                     continue;
                 }
-                this->_defaultConfigs.insert(std::pair<ServerConfigKey, VirtualServerConfig *>(key, sc)); // map
+                if (!checkDuplicate.insert(key).second) {
+                    delete sc;
+                    continue;
+                }
+                this->_defaultConfigs.push_back(sc);
             } else
                 std::cerr << "not match (token != server)\n"; // (TODO) 오류터졌을 때 동적할당 해제 해줘야함
             ss.clear();
@@ -83,7 +89,7 @@ void FTServer::init() {
     this->initializeVirtualServers();
     this->_kqueue = kqueue();
 
-    std::set<int>     portsOpen;
+    std::set<port_t>     portsOpen;
     for (VirtualServerVec::iterator itr = this->_vVirtualServers.begin();
         itr != this->_vVirtualServers.end(); itr++) {
         portsOpen.insert((*itr)->getPortNumber());
@@ -95,9 +101,9 @@ void FTServer::init() {
 //  Initialize all virtual servers from virtual server config set.
 void FTServer::initializeVirtualServers() {
     for (VirtualServerConfigIter itr = this->_defaultConfigs.begin(); itr != this->_defaultConfigs.end(); itr++) {
-        VirtualServer* newVirtualServer = this->makeVirtualServer(itr->second);
+        VirtualServer* newVirtualServer = this->makeVirtualServer(*itr);
         this->_vVirtualServers.push_back(newVirtualServer);
-        this->_defaultVirtualServers.insert(std::pair<int, VirtualServer *>(std::atoi(itr->first._port.c_str()), newVirtualServer));
+        this->_defaultVirtualServers.insert(std::pair<port_t, VirtualServer *>(newVirtualServer->getPortNumber(), newVirtualServer));
     }
 }
 
@@ -160,9 +166,9 @@ VirtualServer*    FTServer::makeVirtualServer(VirtualServerConfig* virtualServer
 // TODO: make it works with actuall server config!
 //  - Parameter
 //  - Return(none)
-void FTServer::initializeConnection(std::set<int>& ports, int size) {
+void FTServer::initializeConnection(std::set<port_t>& ports, int size) {
     Log::verbose("kqueue generated: ( %d )", this->_kqueue);
-    for (std::set<int>::iterator itr = ports.begin(); itr != ports.end(); itr++) {
+    for (std::set<port_t>::iterator itr = ports.begin(); itr != ports.end(); itr++) {
         Connection* newConnection = new Connection(*itr);
         this->_mConnection.insert(std::make_pair(newConnection->getIdent(), newConnection));
         try {
@@ -236,7 +242,7 @@ VirtualServer& FTServer::getTargetVirtualServer(Connection& clientConnection) {
             (this->_vVirtualServers[i]->getServerName() == (*a).substr(1, std::string::npos))) // TODO compare strings
             return *this->_vVirtualServers[i];
     }
-    return *this->_defaultVirtualServers[clientConnection.getPort()];
+    return *this->_defaultVirtualServers[static_cast<port_t>(clientConnection.getPort())];
 }
 
 // Main loop procedure of ServerManager.

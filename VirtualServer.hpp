@@ -66,7 +66,7 @@ public:
     };  // ReturnCode
 
     VirtualServer();
-    VirtualServer(short portNumber, const std::string& name);
+    VirtualServer(port_t portNumber, const std::string& name);
 
     port_t getPortNumber() const { return this->_portNumber; }
     std::string getServerName() const { return this->_name; }

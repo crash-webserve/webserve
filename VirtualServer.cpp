@@ -32,7 +32,7 @@ _connection(nullptr)
 //  - Parameters
 //      portNumber: The port number.
 //      serverName: The server name.
-VirtualServer::VirtualServer(short portNumber, const std::string& name)
+VirtualServer::VirtualServer(port_t portNumber, const std::string& name)
 : _portNumber(portNumber), _name(name) {
     _connection = nullptr;
 }

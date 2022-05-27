@@ -35,6 +35,8 @@ font-family: Tahoma, Verdana, Arial, sans-serif; }\r\n\
 \r\n\
 \r\n"
 
+typedef unsigned short port_t;
+
 //  General coonection handler, from generation communication.
 //   - TODO
 //      Connection should handle the receiving and transmiting without malfunction.
@@ -49,7 +51,7 @@ font-family: Tahoma, Verdana, Arial, sans-serif; }\r\n\
 //   - Methods
 class Connection {
 public:
-    Connection(int port);
+    Connection(port_t port);
     ~Connection();
 
     Connection* acceptClient();
@@ -63,7 +65,7 @@ public:
     bool isclient() { return this->_client; };
     int getIdent() { return this->_ident; };
     std::string getAddr() { return this->_addr; };
-    int getPort() { return this->_hostPort; };
+    port_t getPort() { return this->_hostPort; };
     const Request& getRequest() const { return this->_request; };
     bool isClosed() { return this->_closed; };
     void appendResponseMessage(const std::string& message);
@@ -74,7 +76,7 @@ public:
 private:
     bool _client;
     int _ident;
-    int _hostPort;
+    port_t _hostPort;
     std::string _addr;
     Request _request;
     Response _response;
@@ -82,7 +84,7 @@ private:
     int _writeEventTriggered;
     bool _closed;
 
-    Connection(int ident, std::string addr, int port);
+    Connection(int ident, std::string addr, port_t port);
 
     void newSocket();
     void bindSocket();
