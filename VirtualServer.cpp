@@ -21,7 +21,6 @@ const Status Status::_array[] = {
     { "411", "length required" },
     { "413", "payload too large" },
     { "500", "internal server error" },
-    { "505", "http version not supported" },
 };
 
 //  Default constructor of VirtualServer.

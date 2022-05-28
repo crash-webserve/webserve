@@ -35,7 +35,6 @@ struct Status {
         I_411,
         I_413,
         I_500,
-        I_505,
     };
 
     static const Status _array[];
