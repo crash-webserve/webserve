@@ -88,7 +88,7 @@ int VirtualServer::processGET(Connection& clientConnection) {
 
         location.getRepresentationPath(targetResourceURI, targetRepresentationURI);
         if (stat(targetRepresentationURI.c_str(), &buf) == 0
-                && (buf.st_mode & S_IFDIR) == 0) {
+                && (buf.st_mode & S_IFREG) != 0) {
             this->setStatusLine(clientConnection, Status::I_200);
 
             // TODO 적절한 헤더 필드 추가하기(content-length)
@@ -112,7 +112,7 @@ int VirtualServer::processGET(Connection& clientConnection) {
         }
 
         if (stat(location.getIndex().c_str(), &buf) == 0
-                && (buf.st_mode & S_IFDIR) == 0) {
+                && (buf.st_mode & S_IFREG) != 0) {
             this->setStatusLine(clientConnection, Status::I_200);
 
             // TODO 적절한 헤더 필드 추가하기(content-length)
@@ -135,8 +135,12 @@ int VirtualServer::processGET(Connection& clientConnection) {
             return 0;
         }
 
-        if (location.getAutoIndex())
-            return this->setListResponse(clientConnection, location.getRoot());
+        if (location.getAutoIndex()
+                && stat(targetResourceURI.c_str(), &buf) == 0
+                && (buf.st_mode & S_IFDIR) != 0)
+            return this->setListResponse(clientConnection, targetResourceURI.c_str());
+
+        break;
     }
 
     return this->set404Response(clientConnection);
@@ -285,14 +289,43 @@ int VirtualServer::setListResponse(Connection& clientConnection, const std::stri
     clientConnection.clearResponseMessage();
     this->setStatusLine(clientConnection, Status::I_200);
 
-    // TODO 필요에 따라 헤더 추가하기
-    clientConnection.appendResponseMessage("Transfer-Encoding: chunked\r\n");
-    clientConnection.appendResponseMessage("Content-Type: text/plain\r\n");
+    DIR* dir;
+
+    dir = opendir(path.c_str());
+    if (dir == NULL)
+        return -1;
+
+    int contentLength = 108;
+    while (true) {
+        const struct dirent* entry = readdir(dir);
+        if (entry == NULL)
+            break;
+        if (entry->d_namlen == 1 && strcmp(entry->d_name, ".") == 0)
+            continue;
+
+        const bool isEntryDirectory = (entry->d_type == DT_DIR);
+        contentLength += (entry->d_namlen + isEntryDirectory) * 2 + 17;
+    }
+    closedir(dir);
+
+    contentLength += 24;
+
+    clientConnection.appendResponseMessage("Content-Length: ");
+    std::ostringstream oss;
+    oss << contentLength;
+    clientConnection.appendResponseMessage(oss.str().c_str());
+    clientConnection.appendResponseMessage("\r\n");
+    clientConnection.appendResponseMessage("Connection: keep-alive\r\n");
+    clientConnection.appendResponseMessage("Content-Type: text/html\r\n");
     clientConnection.appendResponseMessage("Date: ");
     clientConnection.appendResponseMessage(clientConnection.makeHeaderField(HTTP::DATE));
-    clientConnection.appendResponseMessage("\r\n\r\n");
+    clientConnection.appendResponseMessage("\r\n");
+    clientConnection.appendResponseMessage("Server: crash-webserve\r\n");
+    clientConnection.appendResponseMessage("\r\n");
 
-    DIR* dir = opendir(path.c_str());
+    clientConnection.appendResponseMessage("<html>\r\n<head><title>Index of /</title></head>\r\n<body bgcolor=\"white\">\r\n<h1>Index of /</h1><hr><pre>");
+
+    dir = opendir(path.c_str());
     if (dir == NULL)
         return -1;
 
@@ -300,17 +333,27 @@ int VirtualServer::setListResponse(Connection& clientConnection, const std::stri
         const struct dirent* entry = readdir(dir);
         if (entry == NULL)
             break;
+        if (entry->d_namlen == 1 && strcmp(entry->d_name, ".") == 0)
+            continue;
 
-        std::stringstream iss;
-        iss << entry->d_namlen + 1;
-        clientConnection.appendResponseMessage(iss.str().c_str());
-        clientConnection.appendResponseMessage("\r\n");
-        clientConnection.appendResponseMessage(entry->d_name);
-        clientConnection.appendResponseMessage("\n\r\n");
+        const bool isEntryDirectory = (entry->d_type == DT_DIR);
+        std::string name;
+        if (!isEntryDirectory)
+            name = entry->d_name;
+        else {
+            name += entry->d_name;
+            name += "/";
+        }
+
+        clientConnection.appendResponseMessage("<a href=\"");
+        clientConnection.appendResponseMessage(name);
+        clientConnection.appendResponseMessage("\">");
+        clientConnection.appendResponseMessage(name);
+        clientConnection.appendResponseMessage("</a>\r\n");
     }
-    clientConnection.appendResponseMessage("0\r\n\r\n");
-
     closedir(dir);
+
+    clientConnection.appendResponseMessage("</pre><hr></body></html>");
 
     return 0;
 }
