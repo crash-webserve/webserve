@@ -152,9 +152,12 @@ VirtualServer*    FTServer::makeVirtualServer(VirtualServerConfig* virtualServer
             else if (!itr2->first.compare("cgi")) {
                 newLocation->setCGIExtention(itr2->second);
             }
+            else if (!itr2->first.compare("root")) {
+                newLocation->setRoot(itr2->second[0]);
+            }
             else {
                 for (size_t i = 0; i < itr2->second.size(); i++)
-                    newVirtualServer->setOtherDirective(itr2->first, itr2->second);
+                    newLocation->setOtherDirective(itr2->first, itr2->second);
             }
         }
         newVirtualServer->appendLocation(newLocation);

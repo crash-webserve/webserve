@@ -88,7 +88,7 @@ int VirtualServer::processGET(Connection& clientConnection) {
 
         location.getRepresentationPath(targetResourceURI, targetRepresentationURI);
         if (stat(targetRepresentationURI.c_str(), &buf) == 0
-                && (buf.st_mode & S_IFDIR) != 0) {
+                && (buf.st_mode & S_IFDIR) == 0) {
             this->setStatusLine(clientConnection, Status::I_200);
 
             // TODO 적절한 헤더 필드 추가하기(content-length)
@@ -112,7 +112,7 @@ int VirtualServer::processGET(Connection& clientConnection) {
         }
 
         if (stat(location.getIndex().c_str(), &buf) == 0
-                && (buf.st_mode & S_IFDIR) != 0) {
+                && (buf.st_mode & S_IFDIR) == 0) {
             this->setStatusLine(clientConnection, Status::I_200);
 
             // TODO 적절한 헤더 필드 추가하기(content-length)
@@ -231,6 +231,7 @@ int VirtualServer::processDELETE(Connection& clientConnection) {
 void VirtualServer::setStatusLine(Connection& clientConnection, Status::Index index) {
     clientConnection.appendResponseMessage("HTTP/1.1 ");
     clientConnection.appendResponseMessage(HTTP::getStatusCodeBy(index));
+    clientConnection.appendResponseMessage(" ");
     clientConnection.appendResponseMessage(HTTP::getStatusReasonBy(index));
     clientConnection.appendResponseMessage("\r\n");
 }
@@ -286,7 +287,7 @@ int VirtualServer::setListResponse(Connection& clientConnection, const std::stri
 
     // TODO 필요에 따라 헤더 추가하기
     clientConnection.appendResponseMessage("Transfer-Encoding: chunked\r\n");
-    clientConnection.appendResponseMessage("Content-Type: text/plain");
+    clientConnection.appendResponseMessage("Content-Type: text/plain\r\n");
     clientConnection.appendResponseMessage("Date: ");
     clientConnection.appendResponseMessage(clientConnection.makeHeaderField(HTTP::DATE));
     clientConnection.appendResponseMessage("\r\n\r\n");

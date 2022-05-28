@@ -41,7 +41,10 @@ public:
             this->_allowedHTTPMethod |= HTTP::RM_GET; // TODO multiple method, check RM_GET name
     };
     void setCGIExtention(std::vector<std::string> cgiExt) { this->_cgiExtension = cgiExt; }
-    
+    void setOtherDirective(std::string directiveName, std::vector<std::string> directiveValue) { 
+        _others.insert(make_pair(directiveName, directiveValue[0])); // TODO multi-value
+    };
+
 private:
     std::string _route;
     std::string _root;
