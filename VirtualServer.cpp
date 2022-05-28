@@ -83,12 +83,12 @@ int VirtualServer::processGET(Connection& clientConnection) {
         if (!location.isRouteMatch(targetResourceURI))
             continue;
 
+        if (!location.isRequestMethodAllowed(request.getMethod()))
+            return this->set405Response(clientConnection);
+
         location.getRepresentationPath(targetResourceURI, targetRepresentationURI);
         if (stat(targetRepresentationURI.c_str(), &buf) == 0
                 && (buf.st_mode & S_IFDIR) != 0) {
-            if (!location.isRequestMethodAllowed(request.getMethod()))
-                return this->set405Response(clientConnection);
-
             this->setStatusLine(clientConnection, Status::I_200);
 
             // TODO 적절한 헤더 필드 추가하기(content-length)
