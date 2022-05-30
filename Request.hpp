@@ -95,14 +95,17 @@ private:
 
     std::string _body;
 
+    bool isReadyToProcess() const;
+    bool isChunked() const;
+
     ssize_t receiveMessage(int clientSocketFD);
     void appendMessage(const char* message);
-    bool isReadyToProcess() const;
 
     ParsingResult parseMessage();
     ParsingResult parseRequestLine(const std::string& requestLine);
     ParsingResult parseHTTPVersion(const std::string& token);
     ParsingResult parseHeader(const std::string& headerField);
+    ParsingResult parseChunkToBody(std::istringstream& iss);
 
     HTTP::RequestMethod requestMethodByString(const std::string& token);
 };

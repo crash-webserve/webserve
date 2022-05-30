@@ -34,13 +34,37 @@ ReturnCaseOfRecv Request::receive(int clientSocketFD) {
         return RCRECV_ZERO;
 
     if (this->isReadyToProcess()) {
-        if (this->parseMessage() == PR_SUCCESS) //  TODO Pass valid string to parseMessage and left remain string.
+        if (this->parseMessage() == PR_SUCCESS)
             return RCRECV_PARSING_SUCCESS;
         else
             return RCRECV_PARSING_FAIL;
     }
 
     return RCRECV_SOME;
+}
+
+//  Returns whether Request received the end of header section or not.
+//  - Parameters(None)
+//  - Return: Whether request received the end of header section or not.
+bool Request::isReadyToProcess() const {
+    return (this->_message.find("\x0d\x0a\x0d\x0a") != std::string::npos);
+}
+
+//  Return whether the body is chunked or not.
+//  - Parameters(None)
+//  - Return: Whether the body is chunked or not.
+bool Request::isChunked() const {
+    const std::string* headerFieldValue = getFirstHeaderFieldValueByName("Transfer-Encoding");
+    if (headerFieldValue == NULL)
+        return false;
+
+    std::istringstream iss(*headerFieldValue);
+    std::string word;
+    std::getline(iss, word, ',');
+    if (iss.eof())
+        return (word == "chunked");
+    else
+        return false;
 }
 
 //  Receive message from client.
@@ -65,13 +89,6 @@ void Request::appendMessage(const char* message) {
     this->_message += message;
 }
 
-//  Returns whether Request received the end of header section or not.
-//  - Parameters(None)
-//  - Return: Whether request received the end of header section or not.
-bool Request::isReadyToProcess() const {
-    return (this->_message.find("\x0d\x0a\x0d\x0a") != std::string::npos);
-}
-
 //  Parse HTTP request message.
 //  - Parameters(None)
 //  - Return: Whether the parsing succeeded or not.
@@ -79,15 +96,14 @@ ParsingResult Request::parseMessage() {
     std::istringstream iss(this->_message);
     std::string line;
 
-    if (!std::getline(iss, line, '\x0d'))
+    if (!std::getline(iss, line, '\r'))
         return PR_FAIL;
     if (this->parseRequestLine(line) == PR_FAIL)
         return PR_FAIL;
 
     while (true) {
-        if (iss.get() == EOF || !iss)
-            return PR_FAIL;
-        if (!std::getline(iss, line, '\x0d'))
+        iss.get();
+        if (!std::getline(iss, line, '\r'))
             return PR_FAIL;
         if (line.empty())
             break;
@@ -95,10 +111,15 @@ ParsingResult Request::parseMessage() {
             return PR_FAIL;
     }
 
-    if (iss.get() == EOF || !iss)
+    if (iss.get() != '\n')
         return PR_FAIL;
 
-    this->_body = this->_message.substr(iss.tellg());
+    if (this->isChunked()) {
+        if (parseChunkToBody(iss) == PR_FAIL)
+            return PR_FAIL;
+    }
+    else
+        this->_body = this->_message.substr(iss.tellg());
 
     this->_message.clear();
 
@@ -174,6 +195,35 @@ ParsingResult Request::parseHeader(const std::string& headerField) {
         value.erase(value.length() - 1);
 
     this->_headerSection.push_back(new HeaderSectionElementType(name, value));
+
+    return PR_SUCCESS;
+}
+
+//  Parse chunked body.
+//  - Parameters iss: input string stream of body.
+//  - Return: Whether the parsing succeeded or not.
+ParsingResult Request::parseChunkToBody(std::istringstream& iss) {
+    this->_body.clear();
+    int contentLength = 0;
+    while (true) {
+        const std::ios_base::fmtflags ff = iss.flags();
+        iss.setf(std::ios_base::hex, std::ios_base::basefield);
+        int chunkLength;
+        iss >> chunkLength;
+        contentLength += chunkLength;
+        iss.flags(ff);
+        iss.get();
+        iss.get();
+        if (!iss)
+            return PR_FAIL;
+        std::string chunk;
+        std::getline(iss, chunk, '\r');
+        this->_body += chunk;
+        if (iss.get() != '\n')
+            return PR_FAIL;
+        if (chunkLength == 0)
+            break;
+    }
 
     return PR_SUCCESS;
 }
