@@ -84,7 +84,7 @@ int VirtualServer::processGET(Connection& clientConnection) {
             continue;
 
         if (!location.isRequestMethodAllowed(request.getMethod()))
-            return this->set405Response(clientConnection);
+            return this->set405Response(clientConnection, &location);
 
         location.getRepresentationPath(targetResourceURI, targetRepresentationURI);
         if (stat(targetRepresentationURI.c_str(), &buf) == 0
@@ -163,7 +163,7 @@ int VirtualServer::processPOST(Connection& clientConnection) {
 
         location.getRepresentationPath(targetResourceURI, targetRepresentationURI);
         if (!location.isRequestMethodAllowed(request.getMethod()))
-            return this->set405Response(clientConnection);
+            return this->set405Response(clientConnection, &location);
 
         std::ofstream out(targetRepresentationURI.c_str());
         if (!out.is_open())
@@ -185,7 +185,7 @@ int VirtualServer::processPOST(Connection& clientConnection) {
         return 0;
     }
 
-    return this->set405Response(clientConnection);
+    return this->set405Response(clientConnection, NULL);
 }
 
 //  Process DELETE request.
@@ -208,7 +208,7 @@ int VirtualServer::processDELETE(Connection& clientConnection) {
         if (stat(targetRepresentationURI.c_str(), &buf) == 0
                 && (buf.st_mode & S_IFDIR) != 0) {
             if (!location.isRequestMethodAllowed(request.getMethod()))
-                return this->set405Response(clientConnection);
+                return this->set405Response(clientConnection, &location);
 
             if (unlink(targetRepresentationURI.c_str()) == -1)
                 return this->set500Response(clientConnection);
@@ -258,13 +258,25 @@ int VirtualServer::set404Response(Connection& clientConnection) {
 //  set response message with 405 status.
 //  - Parameters clientConnection: The client connection.
 //  - Return(None)
-int VirtualServer::set405Response(Connection& clientConnection) {
+int VirtualServer::set405Response(Connection& clientConnection, const Location* location) {
     clientConnection.clearResponseMessage();
     this->setStatusLine(clientConnection, Status::I_405);
 
     // TODO implement
     clientConnection.appendResponseMessage("Date: ");
     clientConnection.appendResponseMessage(clientConnection.makeHeaderField(HTTP::DATE));
+    clientConnection.appendResponseMessage("\r\n");
+
+    clientConnection.appendResponseMessage("Allow: ");
+    std::string tAllowMethod = "";
+    if (location->isRequestMethodAllowed(HTTP::RM_GET))
+        tAllowMethod += "GET, ";
+    if (location->isRequestMethodAllowed(HTTP::RM_POST))
+        tAllowMethod += "POST, ";
+    if (location->isRequestMethodAllowed(HTTP::RM_DELETE))
+        tAllowMethod += "DELETE, ";
+    tAllowMethod = tAllowMethod.substr(0, tAllowMethod.find_last_of(","));
+    clientConnection.appendResponseMessage(tAllowMethod);
     clientConnection.appendResponseMessage("\r\n\r\n");
 
     return 0;

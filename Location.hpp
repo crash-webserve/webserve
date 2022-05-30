@@ -37,8 +37,16 @@ public:
     };
     void setAutoIndex(bool isAutoindex) { this->_autoindex = isAutoindex; };
     void setAllowedHTTPMethod(std::vector<std::string> allowedMethod) {
-        if (allowedMethod[0] == "GET")
-            this->_allowedHTTPMethod |= HTTP::RM_GET; // TODO multiple method, check RM_GET name
+        if (allowedMethod.size() == 0)
+            this->_allowedHTTPMethod = 7;
+        for (std::vector<std::string>::const_iterator itr = allowedMethod.begin(); itr != allowedMethod.end(); itr++) {
+            if (*itr == "GET")
+                this->_allowedHTTPMethod |= HTTP::RM_GET;
+            else if (*itr == "POST")
+                this->_allowedHTTPMethod |= HTTP::RM_POST; 
+            else if (*itr == "DELETE")
+                this->_allowedHTTPMethod |= HTTP::RM_DELETE;
+        }
     };
     void setCGIExtention(std::vector<std::string> cgiExt) { this->_cgiExtension = cgiExt; }
     void setOtherDirective(std::string directiveName, std::vector<std::string> directiveValue) { 
@@ -67,7 +75,7 @@ inline bool Location::isRouteMatch(const std::string& resourceURI) const {
 //  - Parameters requestMethod: request method of request.
 //  - Return: whether the 'requestMethod' is allowed in this location.
 inline bool Location::isRequestMethodAllowed(HTTP::RequestMethod requestMethod) const {
-    return (this->_allowedHTTPMethod | requestMethod) != 0;
+    return (this->_allowedHTTPMethod & requestMethod);
 }
 
 #endif  // LOCATION_HPP_
