@@ -23,8 +23,8 @@ const Status Status::_array[] = {
     { "500", "internal server error" },
 };
 
-static void getContentType(const std::string& name, std::string& type);
-static void getExtension(const std::string& name, std::string& extension);
+static void updateContentType(const std::string& name, std::string& type);
+static void updateExtension(const std::string& name, std::string& extension);
 
 //  Default constructor of VirtualServer.
 //  - Parameters(None)
@@ -100,7 +100,7 @@ int VirtualServer::processGET(Connection& clientConnection) {
             clientConnection.appendResponseMessage("\r\n");
             clientConnection.appendResponseMessage("Content-Type: ");
             std::string type;
-            getContentType(targetRepresentationURI, type);
+            updateContentType(targetRepresentationURI, type);
             clientConnection.appendResponseMessage(type);
             clientConnection.appendResponseMessage("\r\n");
             clientConnection.appendResponseMessage("Content-Length: ");
@@ -143,7 +143,7 @@ int VirtualServer::processGET(Connection& clientConnection) {
             clientConnection.appendResponseMessage("\r\n");
             clientConnection.appendResponseMessage("Content-Type: ");
             std::string type;
-            getContentType(targetRepresentationURI, type);
+            updateContentType(targetRepresentationURI, type);
             clientConnection.appendResponseMessage(type);
             clientConnection.appendResponseMessage("\r\n");
             clientConnection.appendResponseMessage("Content-Length: ");
@@ -404,9 +404,9 @@ int VirtualServer::setListResponse(Connection& clientConnection, const std::stri
 //      name: name of file
 //      type: type to set
 //  - Return(None)
-static void getContentType(const std::string& name, std::string& type) {
+static void updateContentType(const std::string& name, std::string& type) {
     std::string extension;
-    getExtension(name, extension);
+    updateExtension(name, extension);
     if (std::strcmp(extension.c_str(), "txt") == 0)
         type = "text/plain";
     else if (std::strcmp(extension.c_str(), "html") == 0)
@@ -420,7 +420,7 @@ static void getContentType(const std::string& name, std::string& type) {
 //      name: name of file
 //      type: type to set
 //  - Return(None)
-static void getExtension(const std::string& name, std::string& extension) {
+static void updateExtension(const std::string& name, std::string& extension) {
     const std::string::size_type extensionBeginPosition = name.rfind('.') + 1;
     extension.clear();
     if (extensionBeginPosition !=  std::string::npos)
