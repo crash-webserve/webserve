@@ -1,10 +1,29 @@
-#include <sys/socket.h>
 #include "Response.hpp"
 
 //  Constructor of Response.
 Response::Response()
 : _sendBegin(NULL)
-, _message("") { }
+, _message("")
+, _cgiResult("") { }
+
+ReadResult Response::readCGIresult(int fd) {
+    int readResult;
+    char buffer[CGIBufferSize];
+
+    memset(buffer, 0, CGIBufferSize);
+    readResult = read(fd, buffer, CGIBufferSize - 1);
+    switch (readResult) {
+        case 0:
+            Log::info("CGI has been processed.");
+            return Done;
+        case -1:
+            Log::info("CGI process error.");
+            return Error;
+        default:
+            this->_cgiResult += buffer;
+            return Continuing;
+    }
+}
 
 //  clear message.
 //  - Parameter(None)

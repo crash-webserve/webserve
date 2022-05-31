@@ -2,38 +2,20 @@
 #define CONNECTION_HPP_
 
 #include <string>
+#include <sstream>
 #include <sys/event.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <exception>
 #include "Log.hpp"
 #include "Request.hpp"
 #include "Response.hpp"
+#include "EventContext.hpp"
 
 #define TCP_MTU 1500
-#define SAMPLE_RESPONSE "HTTP/1.1 200 OK\r\n\
-Content-Length: 365\r\n\
-\r\n\
-<!DOCTYPE html>\r\n\
-<html>\r\n\
-<head>\r\n\
-<title>Welcome to nginx!</title>\r\n\
-<style>\r\n\
-html { color-scheme: light dark; }\r\n\
-body { width: 35em; margin: 0 auto;\r\n\
-font-family: Tahoma, Verdana, Arial, sans-serif; }\r\n\
-</style>\r\n\
-</head>\r\n\
-<body>\r\n\
-<h1>Welcome to nginx!</h1>\r\n\
-\r\n\
-<p><em>Thank you for using nginx.</em></p>\r\n\
-</body>\r\n\
-</html>\r\n\
-\r\n\
-\r\n"
 
 typedef unsigned short port_t;
 
@@ -46,7 +28,7 @@ typedef unsigned short port_t;
 //      _client
 //      _ident
 //      _addr
-//      _port
+//      _hostPort
 //      _request
 //   - Methods
 class Connection {
@@ -57,15 +39,18 @@ public:
     Connection* acceptClient();
     ReturnCaseOfRecv receive();
     void transmit();
-    void addKevent(int kqueue, int filter, void* udata);
-    void addKeventOneshot(int kqueue, void* udata);
-    void removeKevent(int kqueue, int filter, void* udata);
+    static void addKevent(int filter, EventContext* context);
+    static void addKeventOneshot(EventContext* context);
+    static void removeKevent(int filter, EventContext* context);
     void dispose();
 
+    static const int getKqueue() { return _kqueue; };
     bool isclient() { return this->_client; };
     int getIdent() { return this->_ident; };
     std::string getAddr() { return this->_addr; };
     port_t getPort() { return this->_hostPort; };
+    std::string getPort(std::string string);
+    const Response& getResponse() const { return this->_response; };
     const Request& getRequest() const { return this->_request; };
     bool isClosed() { return this->_closed; };
     void clearResponseMessage();
@@ -75,14 +60,15 @@ public:
     std::string makeDateHeaderField();
 
 private:
+    static const int _kqueue;
     bool _client;
     int _ident;
     port_t _hostPort;
     std::string _addr;
     Request _request;
     Response _response;
-    int _readEventTriggered;
-    int _writeEventTriggered;
+    bool _readEventTriggered;
+    bool _writeEventTriggered;
     bool _closed;
 
     Connection(int ident, std::string addr, port_t port);

@@ -35,7 +35,6 @@ struct Status {
         I_411,
         I_413,
         I_500,
-        I_505,
     };
 
     static const Status _array[];
@@ -72,7 +71,6 @@ inline const char* getStatusReasonBy(HTTP::Status::Index index) {
 //          std::string _defaultErrorPagePath: The path used to set error pages.
 //
 //      _statusCode: Store status code of server.
-//      _targetRepresentationURI: Store target representation URI.
 class VirtualServer {
 public:
     enum ReturnCode {
@@ -102,8 +100,6 @@ private:
 
     std::map<std::string, std::string> _others;
 
-    std::string _targetRepresentationURI;
-
     int processGET(Connection& clientConnection);
     int processPOST(Connection& clientConnection);
     int processDELETE(Connection& clientConnection);
@@ -112,6 +108,24 @@ private:
 
 
     enum {
+        SERVER_SOFTWARE,
+        SERVER_NAME,
+        GATEWAY_INTERFACE,
+        SERVER_PROTOCOL,
+        SERVER_PORT,
+        REQUEST_METHOD,
+        PATH_INFO,
+        PATH_TRANSLATED,
+        SCRIPT_NAME,
+        QUERY_STRING,
+        REMOTE_HOST,
+        REMOTE_ADDR,
+        AUTH_TYPE,
+        REMOTE_USER,
+        REMOTE_IDENT,
+        CONTENT_TYPE,
+        CONTENT_LENGTH,
+
         Literal,
         FromHeader,
         FromConfig,
@@ -120,18 +134,20 @@ private:
         ForkError = -1,
         ChildProcess = 0,
     };
-    enum { CGIBufferSize = 1000 };
     typedef std::map<std::string, std::string> StringMap;
     typedef std::map<std::string, std::string>::iterator StringMapIter;
 
     StringMap _CGIEnvironmentMap;
-    void insertCGIEnvMap(int type, std::string key, std::string val);
-    char** makeCGIEnvironmentArray();
+    std::string getHeaderValue(Request request, std::string key);
+    void insertCGIEnvMap(std::string key, std::string val);
+    void fillCGIEnvMap(Connection& clientConnection);
+    char** makeCGIEnvironmentArray(Connection& clientConnection);
     void passCGI(Connection& clientConnection, int kqueueFD);
 
-    void set404Response(Connection& clientConnection);
-    void set405Response(Connection& clientConnection);
-    void set500Response(Connection& clientConnection);
+    int set404Response(Connection& clientConnection);
+    int set405Response(Connection& clientConnection);
+    int set500Response(Connection& clientConnection);
+    int setListResponse(Connection& clientConnection, const std::string& path);
 };  // VirtualServer
 
 #endif  // VIRTUALSERVER_HPP_

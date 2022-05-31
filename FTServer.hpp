@@ -69,7 +69,8 @@ private:
     VirtualServer* makeVirtualServer(VirtualServerConfig* serverConf);
     void acceptConnection(Connection* connection);
     void closeConnection(int ident);
-    void read(Connection* connection);
+    void readEventHandle(Connection* connection);
+    void readEventHandle(Response* response, int fd);
     void write(Connection* connection);
     VirtualServer* selectVirtualServer(/* Request Object */);
 };

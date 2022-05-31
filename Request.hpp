@@ -74,6 +74,7 @@ public:
     ~Request();
 
     HTTP::RequestMethod getMethod() const { return this->_method; };
+    std::string getMethod(std::string toString) const;
     const std::string& getTargetResourceURI() const { return this->_target; };
     char getMajorVersion() const { return this->_majorVersion; };
     char getMinorVersion() const { return this->_minorVersion; };

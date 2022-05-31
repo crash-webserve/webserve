@@ -23,6 +23,25 @@ const std::string* Request::getFirstHeaderFieldValueByName(const std::string& na
     return (NULL);
 }
 
+//  Overloaded getter of Method for string return.
+//  - Parameters
+//      toString: string when no method match.
+//  - Return
+//      Current Method in string form.
+//      'toString' when unknown method.
+std::string Request::getMethod(std::string toString) const {
+    switch (_method) {
+        case HTTP::RM_UNKNOWN:
+            return "toString";
+        case HTTP::RM_GET:
+            return "GET";
+        case HTTP::RM_POST:
+            return "POST";
+        case HTTP::RM_DELETE:
+            return "DELETE";
+    }
+}
+
 //  Receive message from client. If the message is ready to process, parse it.
 //  - Parameters clientSocketFD: The fd to recv().
 //  - Return: See the type definition.

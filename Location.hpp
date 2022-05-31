@@ -24,9 +24,9 @@ public:
     void getRepresentationPath(const std::string& resourceURI, std::string& representationPath) const;
 
     std::string getRoute() { return this->_route; };
-    std::string getRoot() { return this->_root; };
-    std::string getIndex() { return this->_index; };
-    bool getAutoIndex() { return this->_autoindex; };
+    std::string getRoot() const { return this->_root; };
+    std::string getIndex() const { return this->_index; };
+    bool getAutoIndex() const { return this->_autoindex; };
     char getAllowedHTTPMethod() { return this->_allowedHTTPMethod; };
     std::vector<std::string> getCGIExtention() { return this->_cgiExtension; }
 
@@ -41,7 +41,10 @@ public:
             this->_allowedHTTPMethod |= HTTP::RM_GET; // TODO multiple method, check RM_GET name
     };
     void setCGIExtention(std::vector<std::string> cgiExt) { this->_cgiExtension = cgiExt; }
-    
+    void setOtherDirective(std::string directiveName, std::vector<std::string> directiveValue) { 
+        _others.insert(make_pair(directiveName, directiveValue[0])); // TODO multi-value
+    };
+
 private:
     std::string _route;
     std::string _root;

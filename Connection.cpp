@@ -1,5 +1,7 @@
 #include "Connection.hpp"
 
+const int Connection::_kqueue = kqueue();
+
 // Constructor of Connection class ( no default constructor )
 // Generates a Connection instance for servers.
 //  - Parameters
@@ -35,6 +37,13 @@ Connection::Connection(int ident, std::string addr, port_t port)
 Connection::~Connection() {
     Log::verbose("Connection instance destructor has been called: [%d]", _ident);
     close(this->_ident);
+}
+
+std::string Connection::getPort(std::string prefix) {
+    std::ostringstream outstream;
+
+    outstream << prefix << _hostPort;
+    return outstream.str() ;
 }
 
 // Used with accept(), creates a new Connection instance by the information of accepted client.
@@ -88,7 +97,7 @@ void    Connection::transmit() {
         case RCSEND_ERROR:
             // TODO Implement behavior.
         case RCSEND_ALL:
-            this->removeKevent(this->_writeEventTriggered, EVFILT_WRITE, 0);
+            this->removeKevent(EVFILT_WRITE, 0);
             break;
         default:
             assert(false);
@@ -102,16 +111,19 @@ void    Connection::transmit() {
 //      filter: filter value for Kevent
 //      udata: user data (optional)
 //  - Return(none)
-void Connection::addKevent(int kqueue, int filter, void* udata) {
+void Connection::addKevent(int filter, EventContext* context) {
     struct kevent   ev;
 
-    EV_SET(&ev, this->_ident, filter, EV_ADD | EV_ENABLE, 0, 0, udata);
-    if (kevent(kqueue, &ev, 1, 0, 0, 0) < 0)
+    EV_SET(&ev, context->getIdent(), filter, EV_ADD | EV_ENABLE, 0, 0, context);
+    if (kevent(_kqueue, &ev, 1, 0, 0, 0) < 0)
         throw std::runtime_error("kevent adding Failed.");
-    if (filter == EVFILT_READ) {
-        this->_readEventTriggered = kqueue;
-    } else if (filter == EVFILT_WRITE) {
-        this->_writeEventTriggered = kqueue;
+    if (context->getCallerType() == EventContext::CGIResponse) {}
+    if (context->getCallerType() == EventContext::CONNECTION) {
+        if (filter == EVFILT_READ) {
+            context->getDataAsConnection()->_readEventTriggered = true;
+        } else if (filter == EVFILT_WRITE) {
+            context->getDataAsConnection()->_writeEventTriggered = true;
+        }
     }
 }
 
@@ -120,12 +132,12 @@ void Connection::addKevent(int kqueue, int filter, void* udata) {
 //      kqueue: FD number of Kqueue
 //      udata: user data (optional)
 //  - Return(none)
-void Connection::addKeventOneshot(int kqueue, void* udata) {
+void Connection::addKeventOneshot(EventContext* context) {
     struct kevent   ev;
 
-    Log::verbose("Adding oneshot kevent...");
-    EV_SET(&ev, this->_ident, EVFILT_USER, EV_ADD | EV_ONESHOT, NOTE_TRIGGER, 0, udata);
-    if (kevent(kqueue, &ev, 1, 0, 0, 0) < 0)
+    Log::verbose("Socket [%d] is closed. Triggering closing event...", context->getIdent());
+    EV_SET(&ev, context->getIdent(), EVFILT_USER, EV_ADD | EV_ONESHOT, NOTE_TRIGGER, 0, context);
+    if (kevent(_kqueue, &ev, 1, 0, 0, 0) < 0)
         throw std::runtime_error("kevent (Oneshot) adding Failed.");
 }
 
@@ -135,34 +147,36 @@ void Connection::addKeventOneshot(int kqueue, void* udata) {
 //      filter: filter value for Kevent to remove
 //      udata: user data (optional)
 //  - Return(none)
-void Connection::removeKevent(int kqueue, int filter, void* udata) {
+void Connection::removeKevent(int filter, EventContext* context) {
     struct kevent   ev;
 
-    EV_SET(&ev, this->_ident, filter, EV_DELETE, 0, 0, udata);
-    if (kevent(kqueue, &ev, 1, 0, 0, 0) < 0)
+    EV_SET(&ev, context->getIdent(), filter, EV_DELETE, 0, 0, context);
+    if (kevent(_kqueue, &ev, 1, 0, 0, 0) < 0)
         throw std::runtime_error("kevent deletion Failed.");
-    if (filter == EVFILT_READ) {
-        this->_readEventTriggered = -1;
-    } else if (filter == EVFILT_WRITE) {
-        this->_writeEventTriggered = -1;
+    if (context->getCallerType() == EventContext::CGIResponse) {}
+    if (context->getCallerType() == EventContext::CONNECTION) {
+        if (filter == EVFILT_READ) {
+            context->getDataAsConnection()->_readEventTriggered = false;
+        } else if (filter == EVFILT_WRITE) {
+            context->getDataAsConnection()->_writeEventTriggered = false;
+        }
     }
+    delete context;
 }
 
 // Clean-up process to destroy the Socket instance.
 // mark close attribute, and remove all kevents enrolled.
 //  - Return(none)
 void Connection::dispose() {
-    int kqueue = this->_readEventTriggered;
-
-    if (_closed == true)
+    if (this->_closed == true)
         return;
-    _closed = true;
+    this->_closed = true;
     Log::verbose("Socket instance closing. [%d]", this->_ident);
-    if (this->_readEventTriggered >= 0) {
+    if (this->_readEventTriggered == true) {
         Log::verbose("Read Kevent removing.");
-        this->removeKevent(this->_readEventTriggered, EVFILT_READ, 0);
+        this->removeKevent(EVFILT_READ, 0);
     }
-    this->addKeventOneshot(kqueue, 0);
+    this->addKeventOneshot();
 }
 
 std::string Connection::makeHeaderField(unsigned short fieldName) {
@@ -193,12 +207,12 @@ void Connection::newSocket() {
     int     newConnection = socket(PF_INET, SOCK_STREAM, 0);
     int     enable = 1;
 
-    if (0 > newConnection) {
-        throw;
+    if (newConnection < 0) {
+        throw std::runtime_error("Unable to create new socket.");
     }
     Log::verbose("New Server Connection ( %d )", newConnection);
     if (0 > setsockopt(newConnection, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int))) {
-        throw;
+        throw std::runtime_error("Socket option setup failed.");
     }
     Log::verbose("Connection ( %d ) has been setted to Reusable.", newConnection);
     this->_ident = newConnection;
@@ -222,7 +236,7 @@ void Connection::bindSocket() {
     setAddrStruct(this->_hostPort, addr_in);
     addr = reinterpret_cast<sockaddr*>(&addr_in);
     if (0 > bind(this->_ident, addr, sizeof(*addr))) {
-        throw; // TODO
+        throw std::runtime_error("Socket binding Failed.");
     }
     Log::verbose("Connection ( %d ) bind succeed.", _ident);
 }
@@ -231,7 +245,7 @@ void Connection::bindSocket() {
 //  - Return(none)
 void Connection::listenSocket() {
     if (0 > listen(_ident, 10)) {
-        throw;
+        throw std::runtime_error("Socket listen Failed.");
     }
-    Log::verbose("Listening from Connection ( %d ), Port ( %d ).", _ident);
+    Log::verbose("Listening from Connection ( %d ), Port ( %d ).", _ident, _hostPort);
 }

@@ -41,7 +41,7 @@ void FTServer::initParseConfig(std::string filePath) {
     std::string         token;
     VirtualServerConfig        *sc;
     std::set<ServerConfigKey> checkDuplicate;
-    
+
     fs.open(filePath);
     if (fs.is_open()) {
         while (getline(fs, confLine)) {
@@ -87,7 +87,7 @@ void FTServer::initParseConfig(std::string filePath) {
 //  Initialize server manager from server config set.
 void FTServer::init() {
     this->initializeVirtualServers();
-    this->_kqueue = kqueue();
+    this->_kqueue = Connection::getKqueue();
 
     std::set<port_t>     portsOpen;
     for (VirtualServerVec::iterator itr = this->_vVirtualServers.begin();
@@ -152,9 +152,12 @@ VirtualServer*    FTServer::makeVirtualServer(VirtualServerConfig* virtualServer
             else if (!itr2->first.compare("cgi")) {
                 newLocation->setCGIExtention(itr2->second);
             }
+            else if (!itr2->first.compare("root")) {
+                newLocation->setRoot(itr2->second[0]);
+            }
             else {
                 for (size_t i = 0; i < itr2->second.size(); i++)
-                    newVirtualServer->setOtherDirective(itr2->first, itr2->second);
+                    newLocation->setOtherDirective(itr2->first, itr2->second);
             }
         }
         newVirtualServer->appendLocation(newLocation);
@@ -172,7 +175,7 @@ void FTServer::initializeConnection(std::set<port_t>& ports, int size) {
         Connection* newConnection = new Connection(*itr);
         this->_mConnection.insert(std::make_pair(newConnection->getIdent(), newConnection));
         try {
-            newConnection->addKevent(this->_kqueue, EVFILT_READ, NULL);
+            newConnection->addKevent(EVFILT_READ, NULL);
         } catch(std::exception& exep) {
             Log::verbose(exep.what());
         }
@@ -188,11 +191,11 @@ void FTServer::acceptConnection(Connection* connection) {
     Connection* newConnection = connection->acceptClient();
     this->_mConnection.insert(std::make_pair(newConnection->getIdent(), newConnection));
     try {
-        newConnection->addKevent(this->_kqueue, EVFILT_READ, NULL);
+        newConnection->addKevent(EVFILT_READ, NULL);
     } catch(std::exception& excep) {
         Log::verbose(excep.what());
     }
-    Log::verbose("Client Accepted: [%s]", newConnection->getAddr().c_str());
+    Log::verbose("Client Accepted: [%s] from port %d", newConnection->getAddr().c_str(), newConnection->getPort());
 }
 
 // Close the certain socket and destroy the instance.
@@ -207,7 +210,7 @@ void FTServer::closeConnection(int ident) {
 //  Read and process requested by client.
 //  - Parameters connection: The connection to read from.
 //  - Return(None)
-void FTServer::read(Connection* connection) {
+void FTServer::readEventHandle(Connection* connection) {
     ReturnCaseOfRecv result = connection->receive();
 
     switch (result) {
@@ -224,8 +227,26 @@ void FTServer::read(Connection* connection) {
         case RCRECV_PARSING_SUCCESS:
             VirtualServer& targetVirtualServer = this->getTargetVirtualServer(*connection);
             if (targetVirtualServer.processRequest(*connection) == VirtualServer::RC_SUCCESS)
-                connection->addKevent(this->_kqueue, EVFILT_WRITE, NULL);
+                connection->addKevent(EVFILT_WRITE, NULL);
             break;
+    }
+}
+
+//  Read and process requested by client.
+//  - Parameters connection: The connection to read from.
+//  - Return(None)
+void FTServer::readEventHandle(Response* response, int fd) {
+    ReadResult result = response->readCGIresult(fd);
+
+    switch (result) {
+        case Continuing:
+            break;
+        case Error:
+            //  TODO Implement behavior
+        case Done:
+            // connection->dispose();
+            // remove this event
+            
     }
 }
 
@@ -265,18 +286,30 @@ void FTServer::run() {
         {
             // struct kevent& event = events[i];
             int filter = events[i].filter;
+            EventContext* context = (EventContext*)events[i].udata;
             Connection* eventConnection = _mConnection[events[i].ident];
 
+            switch (context->getCallerType()) {
+                case EventContext::CONNECTION:
+                
+
+            }
             try
             {
-                if (filter == EVFILT_READ && eventConnection->isclient() == false) {
-                    this->acceptConnection(eventConnection);
-                } else if (filter == EVFILT_READ) {
-                    this->read(eventConnection);
-                } else if (filter == EVFILT_WRITE) {
+                switch (filter) {
+                case EVFILT_READ:
+                    if (eventConnection->isclient() == true) {
+                        this->readEventHandle(eventConnection);
+                    } else {
+                        this->acceptConnection(eventConnection);
+                    }
+                    break;
+                case EVFILT_WRITE:
                     eventConnection->transmit();
-                } else if (filter == EVFILT_USER) {
+                    break;
+                case EVFILT_USER:
                     this->closeConnection(events[i].ident);
+
                 }
             }
             catch (const std::exception& excep)
