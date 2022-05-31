@@ -71,9 +71,6 @@ public:
     void clearResponseMessage();
     void appendResponseMessage(const std::string& message);
 
-    std::string makeHeaderField(unsigned short fieldName);
-    std::string makeDateHeaderField();
-
 private:
     bool _client;
     int _ident;

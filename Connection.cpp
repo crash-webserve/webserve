@@ -165,28 +165,6 @@ void Connection::dispose() {
     this->addKeventOneshot(kqueue, 0);
 }
 
-std::string Connection::makeHeaderField(unsigned short fieldName) {
-    switch (fieldName)
-    {
-    case HTTP::DATE:
-        return makeDateHeaderField();
-    }
-    return ""; // TODO delete
-}
-
-// Find the current time based on GMT
-//  - Parameters(None)
-//  - Return
-//      Current time based on GMT(std::string)
-std::string Connection::makeDateHeaderField() {
-    char cDate[1000];
-    time_t rr = time(0);
-    struct tm tm = *gmtime(&rr);
-    strftime(cDate, sizeof(cDate), "%a, %d %b %Y %H:%M:%S GMT", &tm);
-    std::string dateStr = cDate;
-    return dateStr;
-}
-
 // Creates new Connection and set for the attribute.
 //  - Return(none)
 void Connection::newSocket() {

@@ -92,6 +92,10 @@ public:
     void appendLocation(Location* lc) { this->_location.push_back(lc); };
     VirtualServer::ReturnCode processRequest(Connection& clientConnection);
 
+    std::string makeHeaderField(unsigned short fieldName);
+    std::string makeDateHeaderField();
+    // std::string makeAllowHeaderField();
+
 private:
     port_t _portNumber;
     std::string _name;
