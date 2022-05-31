@@ -146,7 +146,7 @@ VirtualServer*    FTServer::makeVirtualServer(VirtualServerConfig* virtualServer
             else if (!itr2->first.compare("index")) {
                 newLocation->setIndex(itr2->second);
             }
-            else if (!itr2->first.compare("limit_except")) {
+            else if (!itr2->first.compare("allow_method")) {
                 newLocation->setAllowedHTTPMethod(itr2->second); 
             }
             else if (!itr2->first.compare("cgi")) {
