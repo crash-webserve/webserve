@@ -5,7 +5,7 @@ _route(""),
 _root(""),
 _index(""),
 _autoindex(false),
-_allowedHTTPMethod(0)
+_allowedHTTPMethod(7)
 {
 }
 

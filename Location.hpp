@@ -37,16 +37,17 @@ public:
     };
     void setAutoIndex(bool isAutoindex) { this->_autoindex = isAutoindex; };
     void setAllowedHTTPMethod(std::vector<std::string> allowedMethod) {
-        if (allowedMethod.size() == 0)
-            this->_allowedHTTPMethod = 7;
+        char beAllowed = '0';
         for (std::vector<std::string>::const_iterator itr = allowedMethod.begin(); itr != allowedMethod.end(); itr++) {
             if (*itr == "GET")
-                this->_allowedHTTPMethod |= HTTP::RM_GET;
+                beAllowed |= HTTP::RM_GET;
             else if (*itr == "POST")
-                this->_allowedHTTPMethod |= HTTP::RM_POST; 
+                beAllowed |= HTTP::RM_POST; 
             else if (*itr == "DELETE")
-                this->_allowedHTTPMethod |= HTTP::RM_DELETE;
+                beAllowed |= HTTP::RM_DELETE;
         }
+        if (beAllowed)
+            this->_allowedHTTPMethod = beAllowed;
     };
     void setCGIExtention(std::vector<std::string> cgiExt) { this->_cgiExtension = cgiExt; }
     void setOtherDirective(std::string directiveName, std::vector<std::string> directiveValue) { 
