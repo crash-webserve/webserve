@@ -6,9 +6,7 @@
 // default constructor of FTServer
 //  - Parameters(None)
 FTServer::FTServer() :
-_kqueue(-1),
-_alive(true)
-{
+_alive(true) {
     Log::verbose("A FTServer has been generated.");
 }
 
@@ -86,8 +84,11 @@ void FTServer::initParseConfig(std::string filePath) {
 //  TODO Implement real behavior.
 //  Initialize server manager from server config set.
 void FTServer::init() {
+    if (_eventHandler.getKqueue() < 0)
+        throw std::runtime_error("Kqueue Initiation Failed.");
+    Log::verbose("kqueue generated: ( %d )", _eventHandler.getKqueue());
+
     this->initializeVirtualServers();
-    this->_kqueue = kqueue();
 
     std::set<port_t>     portsOpen;
     for (VirtualServerVec::iterator itr = this->_vVirtualServers.begin();
@@ -170,12 +171,14 @@ VirtualServer*    FTServer::makeVirtualServer(VirtualServerConfig* virtualServer
 //  - Parameter
 //  - Return(none)
 void FTServer::initializeConnection(std::set<port_t>& ports, int size) {
-    Log::verbose("kqueue generated: ( %d )", this->_kqueue);
     for (std::set<port_t>::iterator itr = ports.begin(); itr != ports.end(); itr++) {
         Connection* newConnection = new Connection(*itr);
         this->_mConnection.insert(std::make_pair(newConnection->getIdent(), newConnection));
         try {
-            newConnection->addKevent(this->_kqueue, EVFILT_READ, NULL);
+            _eventHandler.addEvent(
+                EVFILT_READ,
+                new EventContext(newConnection->getIdent(), EventContext::CONNECTION, newConnection)
+            );
         } catch(std::exception& exep) {
             Log::verbose(exep.what());
         }
@@ -191,20 +194,28 @@ void FTServer::acceptConnection(Connection* connection) {
     Connection* newConnection = connection->acceptClient();
     this->_mConnection.insert(std::make_pair(newConnection->getIdent(), newConnection));
     try {
-        newConnection->addKevent(this->_kqueue, EVFILT_READ, NULL);
+        _eventHandler.addEvent(
+            EVFILT_READ,
+            new EventContext(newConnection->getIdent(), EventContext::CONNECTION, newConnection)
+        );
     } catch(std::exception& excep) {
         Log::verbose(excep.what());
     }
     Log::verbose("Client Accepted: [%s]", newConnection->getAddr().c_str());
+}
+void FTServer::acceptConnection(int ident) {
+    return this->acceptConnection(_mConnection[ident]);
 }
 
 // Close the certain socket and destroy the instance.
 //  - Parameter
 //      ident: socket FD number to kill.
 //  - Return(none)
-void FTServer::closeConnection(int ident) {
-    delete this->_mConnection[ident];
-    this->_mConnection.erase(ident);
+void FTServer::closeConnectionWhenFlagged(struct kevent event) {
+    if (event.filter != EVFILT_USER)
+        return;
+    delete this->_mConnection[event.ident];
+    this->_mConnection.erase(event.ident);
 }
 
 //  Read and process requested by client.
@@ -252,40 +263,28 @@ VirtualServer& FTServer::getTargetVirtualServer(Connection& clientConnection) {
 // Do multiflexing job using Kqueue.
 //  - Return(none)
 void FTServer::run() {
-    const int MaxEvents = 20;
-    struct kevent events[MaxEvents];
+    struct kevent events[_eventHandler.getMaxEvent()];
+    int numbers = 0;
 
     while (_alive == true)
     {
-        int numbers = kevent(this->_kqueue, NULL, 0, events, MaxEvents, NULL);
-        if (numbers < 0)
-        {
+        numbers = _eventHandler.checkEvent(events);
+        if (numbers < 0) {
             Log::verbose("VirtualServer::run kevent error [%d]", errno);
             continue;
         }
-        Log::verbose("kevent found %d events.", numbers);
-        for (int i = 0; i < numbers; i++)
-        {
-            // struct kevent& event = events[i];
-            int filter = events[i].filter;
-            Connection* eventConnection = _mConnection[events[i].ident];
-
-            try
-            {
-                if (filter == EVFILT_READ && eventConnection->isclient() == false) {
-                    this->acceptConnection(eventConnection);
-                } else if (filter == EVFILT_READ) {
-                    this->read(eventConnection);
-                } else if (filter == EVFILT_WRITE) {
-                    eventConnection->transmit();
-                } else if (filter == EVFILT_USER) {
-                    this->closeConnection(events[i].ident);
-                }
+        for (int i = 0; i < numbers; i++) {
+            try {
+            this->closeConnectionWhenFlagged(events[i]);
+            _eventHandler.runEachEvent(events[i]);
             }
-            catch (const std::exception& excep)
-            {
+            catch (const std::exception& excep) {
                 Log::verbose("VirtualServer::run Error [%s]", excep.what());
             }
         }
     }
 }
+
+void FTServer::handleSingleEvent(struct kevent event) {
+}
+
