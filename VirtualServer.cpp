@@ -23,6 +23,9 @@ const Status Status::_array[] = {
     { "500", "internal server error" },
 };
 
+static void updateContentType(const std::string& name, std::string& type);
+static void updateExtension(const std::string& name, std::string& extension);
+
 //  Default constructor of VirtualServer.
 //  - Parameters(None)
 VirtualServer::VirtualServer() 
@@ -91,10 +94,29 @@ int VirtualServer::processGET(Connection& clientConnection) {
                 && (buf.st_mode & S_IFREG) != 0) {
             this->setStatusLine(clientConnection, Status::I_200);
 
-            // TODO 적절한 헤더 필드 추가하기(content-length)
+            clientConnection.appendResponseMessage("Server: crash-webserve\r\n");
             clientConnection.appendResponseMessage("Date: ");
             clientConnection.appendResponseMessage(this->makeHeaderField(HTTP::DATE));
-            clientConnection.appendResponseMessage("\r\n\r\n");
+            clientConnection.appendResponseMessage("\r\n");
+            clientConnection.appendResponseMessage("Content-Type: ");
+            std::string type;
+            updateContentType(targetRepresentationURI, type);
+            clientConnection.appendResponseMessage(type);
+            clientConnection.appendResponseMessage("\r\n");
+            clientConnection.appendResponseMessage("Content-Length: ");
+            std::ostringstream oss;
+            oss << buf.st_size;
+            clientConnection.appendResponseMessage(oss.str().c_str());
+            clientConnection.appendResponseMessage("\r\n");
+            clientConnection.appendResponseMessage("Last-Modified: ");
+            const struct timespec lastModified = buf.st_mtimespec;
+            const struct tm tm = *gmtime(&lastModified.tv_sec);
+            char lastModifiedString[BUF_SIZE];
+            strftime(lastModifiedString, BUF_SIZE, "%a, %d %b %Y %H:%M:%S GMT", &tm);
+            clientConnection.appendResponseMessage(lastModifiedString);
+            clientConnection.appendResponseMessage("\r\n");
+            clientConnection.appendResponseMessage("Connection: keep-alive\r\n");
+            clientConnection.appendResponseMessage("\r\n");
 
             std::ifstream targetRepresentation(targetRepresentationURI, std::ios_base::binary | std::ios_base::ate);
             if (!targetRepresentation.is_open())
@@ -115,10 +137,29 @@ int VirtualServer::processGET(Connection& clientConnection) {
                 && (buf.st_mode & S_IFREG) != 0) {
             this->setStatusLine(clientConnection, Status::I_200);
 
-            // TODO 적절한 헤더 필드 추가하기(content-length)
+            clientConnection.appendResponseMessage("Server: crash-webserve\r\n");
             clientConnection.appendResponseMessage("Date: ");
             clientConnection.appendResponseMessage(this->makeHeaderField(HTTP::DATE));
-            clientConnection.appendResponseMessage("\r\n\r\n");
+            clientConnection.appendResponseMessage("\r\n");
+            clientConnection.appendResponseMessage("Content-Type: ");
+            std::string type;
+            updateContentType(targetRepresentationURI, type);
+            clientConnection.appendResponseMessage(type);
+            clientConnection.appendResponseMessage("\r\n");
+            clientConnection.appendResponseMessage("Content-Length: ");
+            std::ostringstream oss;
+            oss << buf.st_size;
+            clientConnection.appendResponseMessage(oss.str().c_str());
+            clientConnection.appendResponseMessage("\r\n");
+            clientConnection.appendResponseMessage("Last-Modified: ");
+            const struct timespec lastModified = buf.st_mtimespec;
+            const struct tm tm = *gmtime(&lastModified.tv_sec);
+            char lastModifiedString[BUF_SIZE];
+            strftime(lastModifiedString, BUF_SIZE, "%a, %d %b %Y %H:%M:%S GMT", &tm);
+            clientConnection.appendResponseMessage(lastModifiedString);
+            clientConnection.appendResponseMessage("\r\n");
+            clientConnection.appendResponseMessage("Connection: keep-alive\r\n");
+            clientConnection.appendResponseMessage("\r\n");
 
             std::ifstream targetRepresentation(location.getIndex(), std::ios_base::binary | std::ios_base::ate);
             if (!targetRepresentation.is_open())
@@ -397,3 +438,33 @@ std::string VirtualServer::makeDateHeaderField() {
 // std::string Connection::makeAllowHeaderField() {
     
 // }
+
+//  set 'type' of 'name'
+//  - Parameters
+//      name: name of file
+//      type: type to set
+//  - Return(None)
+static void updateContentType(const std::string& name, std::string& type) {
+    std::string extension;
+    updateExtension(name, extension);
+    if (std::strcmp(extension.c_str(), "txt") == 0)
+        type = "text/plain";
+    else if (std::strcmp(extension.c_str(), "html") == 0)
+        type = "text/html";
+    else
+        type = "application/octet-stream";
+}
+
+//  set 'extension' of 'name'
+//  - Parameters
+//      name: name of file
+//      type: type to set
+//  - Return(None)
+static void updateExtension(const std::string& name, std::string& extension) {
+    const std::string::size_type extensionBeginPosition = name.rfind('.') + 1;
+    extension.clear();
+    if (extensionBeginPosition !=  std::string::npos)
+        extension = name.c_str() + extensionBeginPosition;
+    else
+        return;
+}
