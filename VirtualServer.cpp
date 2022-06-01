@@ -1,11 +1,4 @@
-#include <fstream>
-#include <sstream>
-#include <cstring>
-#include <sys/stat.h>
-#include <dirent.h>
 #include "VirtualServer.hpp"
-#include "Connection.hpp"
-#include "constant.hpp"
 
 using HTTP::Status;
 

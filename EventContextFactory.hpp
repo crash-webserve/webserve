@@ -1,5 +1,0 @@
-#ifndef EVENTCONTEXTFACTORY_HPP_
-#define EVENTCONTEXTFACTORY_HPP_
-
-
-#endif

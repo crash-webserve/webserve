@@ -23,6 +23,13 @@ const std::string* Request::getFirstHeaderFieldValueByName(const std::string& na
     return (NULL);
 }
 
+//  clear message.
+//  - Parameter(None)
+//  - Return(None)
+void Request::clearMessage() {
+    this->_message.clear();
+}
+
 //  Receive message from client. If the message is ready to process, parse it.
 //  - Parameters clientSocketFD: The fd to recv().
 //  - Return: See the type definition.

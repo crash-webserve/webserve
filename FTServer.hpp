@@ -70,12 +70,12 @@ private:
 
     VirtualServer* makeVirtualServer(VirtualServerConfig* serverConf);
     void acceptConnection(Connection* connection);
-    void closeConnectionWhenFlagged(struct kevent event);
+    void handleUserFlaggedEvent(struct kevent event);
     void read(Connection* connection);
     void write(Connection* connection);
 
-    void handleSingleEvent(struct kevent event);
-    void handleConnectionEvent(struct kevent event);
+    EventContext::EventResult driveThisEvent(EventContext* context, int filter);
+    void runEachEvent(struct kevent event);
 
     VirtualServer* selectVirtualServer(/* Request Object */);
 };

@@ -6,7 +6,8 @@
 // default constructor of FTServer
 //  - Parameters(None)
 FTServer::FTServer() :
-_alive(true) {
+_alive(true),
+_eventHandler(EventHandler()) {
     Log::verbose("A FTServer has been generated.");
 }
 
@@ -172,12 +173,12 @@ VirtualServer*    FTServer::makeVirtualServer(VirtualServerConfig* virtualServer
 //  - Return(none)
 void FTServer::initializeConnection(std::set<port_t>& ports, int size) {
     for (std::set<port_t>::iterator itr = ports.begin(); itr != ports.end(); itr++) {
-        Connection* newConnection = new Connection(*itr);
+        Connection* newConnection = new Connection(*itr, _eventHandler);
         this->_mConnection.insert(std::make_pair(newConnection->getIdent(), newConnection));
         try {
             _eventHandler.addEvent(
                 EVFILT_READ,
-                new EventContext(newConnection->getIdent(), EventContext::CONNECTION, newConnection)
+                new EventContext(newConnection->getIdent(), EventContext::EV_Accept, this)
             );
         } catch(std::exception& exep) {
             Log::verbose(exep.what());
@@ -196,7 +197,7 @@ void FTServer::acceptConnection(Connection* connection) {
     try {
         _eventHandler.addEvent(
             EVFILT_READ,
-            new EventContext(newConnection->getIdent(), EventContext::CONNECTION, newConnection)
+            new EventContext(newConnection->getIdent(), EventContext::EV_Request, newConnection)
         );
     } catch(std::exception& excep) {
         Log::verbose(excep.what());
@@ -211,36 +212,29 @@ void FTServer::acceptConnection(int ident) {
 //  - Parameter
 //      ident: socket FD number to kill.
 //  - Return(none)
-void FTServer::closeConnectionWhenFlagged(struct kevent event) {
+void FTServer::handleUserFlaggedEvent(struct kevent event) {
+	EventContext* context = (EventContext*)event.udata;
+
     if (event.filter != EVFILT_USER)
         return;
-    delete this->_mConnection[event.ident];
-    this->_mConnection.erase(event.ident);
+	switch (context->getCallerType()) {
+	case EventContext::EV_SetVirtualServer:
+		*(VirtualServer**)context->getData() = &getTargetVirtualServer(*_mConnection[context->getIdent()]);
+		break;
+	case EventContext::EV_DisposeConn:
+		delete this->_mConnection[event.ident];
+		this->_mConnection.erase(event.ident);
+	default:
+		;
+	}
+	delete context;
+
 }
 
 //  Read and process requested by client.
 //  - Parameters connection: The connection to read from.
 //  - Return(None)
 void FTServer::read(Connection* connection) {
-    ReturnCaseOfRecv result = connection->receive();
-
-    switch (result) {
-        case RCRECV_ERROR:
-            //  TODO Implement behavior
-        case RCRECV_ZERO:
-            connection->dispose();
-            break;
-        case RCRECV_SOME:
-            break;
-        case RCRECV_PARSING_FAIL:
-            //  TODO Implement behavior
-            break;
-        case RCRECV_PARSING_SUCCESS:
-            VirtualServer& targetVirtualServer = this->getTargetVirtualServer(*connection);
-            if (targetVirtualServer.processRequest(*connection) == VirtualServer::RC_SUCCESS)
-                connection->addKevent(this->_kqueue, EVFILT_WRITE, NULL);
-            break;
-    }
 }
 
 //  Return appropriate server to process client connection.
@@ -274,17 +268,53 @@ void FTServer::run() {
             continue;
         }
         for (int i = 0; i < numbers; i++) {
-            try {
-            this->closeConnectionWhenFlagged(events[i]);
-            _eventHandler.runEachEvent(events[i]);
-            }
-            catch (const std::exception& excep) {
-                Log::verbose("VirtualServer::run Error [%s]", excep.what());
-            }
+            this->handleUserFlaggedEvent(events[i]);
+            this->runEachEvent(events[i]);
         }
     }
 }
 
-void FTServer::handleSingleEvent(struct kevent event) {
+EventContext::EventResult FTServer::driveThisEvent(EventContext* context, int filter) {
+	Connection* connection = (Connection*)context->getData();
+
+	switch (context->getCallerType()) {
+	case EventContext::EV_Accept:
+		if (filter != EVFILT_READ)
+			return EventContext::ER_NA;
+		this->acceptConnection(context->getIdent());
+		return EventContext::ER_Continue;
+	case EventContext::EV_Request:
+		if (filter != EVFILT_READ)
+			return EventContext::ER_NA;
+		return connection->receive();
+	case EventContext::EV_Response:
+		if (filter != EVFILT_WRITE)
+			return EventContext::ER_NA;
+		return connection->transmit();
+	case EventContext::EV_CGIResponse:
+		;
+	default:
+		;
+	}
+	return EventContext::ER_NA;
+
 }
 
+void FTServer::runEachEvent(struct kevent event) {
+    EventContext* context = (EventContext*)event.udata;
+	int filter = event.filter;
+	int eventResult;
+
+	eventResult = this->driveThisEvent(context, filter);
+
+	switch (eventResult) {
+	case EventContext::ER_Done:
+	case EventContext::ER_Continue:
+		break ;
+	case EventContext::ER_NA:
+		Log::debug("EventContext is not applicalble. (%d)", context->getIdent());
+	case EventContext::ER_Remove:
+		_eventHandler.removeEvent(filter, context);
+	}
+
+}

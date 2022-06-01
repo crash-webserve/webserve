@@ -9,31 +9,12 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include "Log.hpp"
+#include "EventHandler.hpp"
+#include "VirtualServer.hpp"
 #include "Request.hpp"
 #include "Response.hpp"
 
 #define TCP_MTU 1500
-#define SAMPLE_RESPONSE "HTTP/1.1 200 OK\r\n\
-Content-Length: 365\r\n\
-\r\n\
-<!DOCTYPE html>\r\n\
-<html>\r\n\
-<head>\r\n\
-<title>Welcome to nginx!</title>\r\n\
-<style>\r\n\
-html { color-scheme: light dark; }\r\n\
-body { width: 35em; margin: 0 auto;\r\n\
-font-family: Tahoma, Verdana, Arial, sans-serif; }\r\n\
-</style>\r\n\
-</head>\r\n\
-<body>\r\n\
-<h1>Welcome to nginx!</h1>\r\n\
-\r\n\
-<p><em>Thank you for using nginx.</em></p>\r\n\
-</body>\r\n\
-</html>\r\n\
-\r\n\
-\r\n"
 
 typedef unsigned short port_t;
 
@@ -51,16 +32,8 @@ typedef unsigned short port_t;
 //   - Methods
 class Connection {
 public:
-    Connection(port_t port);
+    Connection(port_t port, EventHandler& evHandler);
     ~Connection();
-
-    Connection* acceptClient();
-    ReturnCaseOfRecv receive();
-    void transmit();
-    void addKevent(int kqueue, int filter, void* udata);
-    void addKeventOneshot(int kqueue, void* udata);
-    void removeKevent(int kqueue, int filter, void* udata);
-    void dispose();
 
     bool isclient() { return this->_client; };
     int getIdent() { return this->_ident; };
@@ -68,6 +41,12 @@ public:
     port_t getPort() { return this->_hostPort; };
     const Request& getRequest() const { return this->_request; };
     bool isClosed() { return this->_closed; };
+
+    Connection* acceptClient();
+    EventContext::EventResult receive();
+    EventContext::EventResult transmit();
+    void dispose();
+    void clearRequestMessage();
     void clearResponseMessage();
     void appendResponseMessage(const std::string& message);
 
@@ -81,20 +60,25 @@ private:
     std::string _addr;
     Request _request;
     Response _response;
+	EventHandler& _eventHandler;
     int _readEventTriggered;
     int _writeEventTriggered;
     bool _closed;
 
-    Connection(int ident, std::string addr, port_t port);
+    Connection(int ident, std::string addr, port_t port, EventHandler& evHandler);
 
     void newSocket();
     void bindSocket();
     void listenSocket();
-
-    typedef unsigned char Byte;
-    typedef std::vector<Byte> ByteVector;
-    // typedef ByteVector::iterator ByteVectorIter;
+    EventContext::EventResult passParsedRequest();
 };
+
+//  Clear request message.
+//  - Parameters(None)
+//  - Return(None)
+inline void Connection::clearRequestMessage() {
+    this->_request.clearMessage();
+}
 
 //  Clear response message.
 //  - Parameters(None)

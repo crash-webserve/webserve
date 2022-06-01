@@ -4,9 +4,10 @@
 // Generates a Connection instance for servers.
 //  - Parameters
 //      - port: Port number to open
-Connection::Connection(port_t port)
+Connection::Connection(port_t port, EventHandler& evHandler)
 : _client(false)
 , _hostPort(port)
+, _eventHandler(evHandler)
 , _readEventTriggered(-1)
 , _writeEventTriggered(-1) {
     this->newSocket();
@@ -20,11 +21,12 @@ Connection::Connection(port_t port)
 //      - ident: Socket FD which is delivered by accept
 //      - addr: Address to the client
 //      - port: Port number to open
-Connection::Connection(int ident, std::string addr, port_t port)
+Connection::Connection(int ident, std::string addr, port_t port, EventHandler& evHandler)
 : _client(true)
 , _ident(ident)
 , _addr(addr)
 , _hostPort(port)
+, _eventHandler(evHandler)
 , _readEventTriggered(-1)
 , _writeEventTriggered(-1)
 , _closed(false) {
@@ -57,14 +59,29 @@ Connection* Connection::acceptClient() {
     Log::verbose("Connected from [%s:%d]", addr.c_str(), port);
     if (fcntl(clientfd, F_SETFL, O_NONBLOCK) < 0)
         throw std::runtime_error("fcntl Failed");
-    return new Connection(clientfd, addr, this->_hostPort);
+    return new Connection(clientfd, addr, this->_hostPort, _eventHandler);
 }
 
 // The way how Connection class handles receive event.
 //  - Return
 //      Result of receiving process.
-ReturnCaseOfRecv Connection::receive() {
-    return this->_request.receive(this->_ident);
+EventContext::EventResult Connection::receive() {
+    ReturnCaseOfRecv result = this->_request.receive(this->_ident);
+
+	switch (result) {
+	case RCRECV_ERROR:
+		Log::debug("Error has been occured while recieving from [%d].", this->_ident);
+	case RCRECV_PARSING_FAIL:
+		Log::debug("Wrong Request from [%d].", this->_ident);
+	case RCRECV_ZERO:
+		this->dispose();
+		return EventContext::ER_Remove;
+	case RCRECV_SOME:
+		break;
+	case RCRECV_PARSING_SUCCESS:
+		return this->passParsedRequest();
+	}
+	return EventContext::ER_Continue;
 }
 
 // // The way how Connection class handles transmit event.
@@ -80,89 +97,86 @@ ReturnCaseOfRecv Connection::receive() {
 //  Send response message to client.
 //  - Parameters(None)
 //  - Return(None)
-void    Connection::transmit() {
-    const int returnValue = this->_response.sendResponseMessage(this->_ident);
-    switch (returnValue) {
-        case RCSEND_SOME:
-            break;
-        case RCSEND_ERROR:
-            // TODO Implement behavior.
-        case RCSEND_ALL:
-            this->removeKevent(this->_writeEventTriggered, EVFILT_WRITE, 0);
-            break;
-        default:
-            assert(false);
-            break;
+EventContext::EventResult Connection::transmit() {
+    ReturnCaseOfSend result = this->_response.sendResponseMessage(this->_ident);
+
+    switch (result) {
+	case RCSEND_ERROR:
+		Log::debug("Error has been occured while Sending to [%d].", this->_ident);
+	case RCSEND_ALL:
+		return EventContext::ER_Remove;
+	case RCSEND_SOME:
+		break;
+	default:
+		assert(false);
+		break;
     }
+	return EventContext::ER_Continue;
 }
 
-// Add new event on Kqueue
-//  - Parameters
-//      kqueue: FD number of Kqueue
-//      filter: filter value for Kevent
-//      udata: user data (optional)
-//  - Return(none)
-void Connection::addKevent(int kqueue, int filter, void* udata) {
-    struct kevent   ev;
+// // Add new event on Kqueue
+// //  - Parameters
+// //      kqueue: FD number of Kqueue
+// //      filter: filter value for Kevent
+// //      udata: user data (optional)
+// //  - Return(none)
+// void Connection::addKevent(int kqueue, int filter, void* udata) {
+//     struct kevent   ev;
 
-    EV_SET(&ev, this->_ident, filter, EV_ADD | EV_ENABLE, 0, 0, udata);
-    if (kevent(kqueue, &ev, 1, 0, 0, 0) < 0)
-        throw std::runtime_error("kevent adding Failed.");
-    if (filter == EVFILT_READ) {
-        this->_readEventTriggered = kqueue;
-    } else if (filter == EVFILT_WRITE) {
-        this->_writeEventTriggered = kqueue;
-    }
-}
+//     EV_SET(&ev, this->_ident, filter, EV_ADD | EV_ENABLE, 0, 0, udata);
+//     if (kevent(kqueue, &ev, 1, 0, 0, 0) < 0)
+//         throw std::runtime_error("kevent adding Failed.");
+//     if (filter == EVFILT_READ) {
+//         this->_readEventTriggered = kqueue;
+//     } else if (filter == EVFILT_WRITE) {
+//         this->_writeEventTriggered = kqueue;
+//     }
+// }
 
-// Add new Oneshot event on Kqueue (triggered just for 1 time)
-//  - Parameters
-//      kqueue: FD number of Kqueue
-//      udata: user data (optional)
-//  - Return(none)
-void Connection::addKeventOneshot(int kqueue, void* udata) {
-    struct kevent   ev;
+// // Add new Oneshot event on Kqueue (triggered just for 1 time)
+// //  - Parameters
+// //      kqueue: FD number of Kqueue
+// //      udata: user data (optional)
+// //  - Return(none)
+// void Connection::addKeventOneshot(int kqueue, void* udata) {
+//     struct kevent   ev;
 
-    Log::verbose("Adding oneshot kevent...");
-    EV_SET(&ev, this->_ident, EVFILT_USER, EV_ADD | EV_ONESHOT, NOTE_TRIGGER, 0, udata);
-    if (kevent(kqueue, &ev, 1, 0, 0, 0) < 0)
-        throw std::runtime_error("kevent (Oneshot) adding Failed.");
-}
+//     Log::verbose("Adding oneshot kevent...");
+//     EV_SET(&ev, this->_ident, EVFILT_USER, EV_ADD | EV_ONESHOT, NOTE_TRIGGER, 0, udata);
+//     if (kevent(kqueue, &ev, 1, 0, 0, 0) < 0)
+//         throw std::runtime_error("kevent (Oneshot) adding Failed.");
+// }
 
-// Remove existing event on Kqueue
-//  - Parameters
-//      kqueue: FD number of Kqueue
-//      filter: filter value for Kevent to remove
-//      udata: user data (optional)
-//  - Return(none)
-void Connection::removeKevent(int kqueue, int filter, void* udata) {
-    struct kevent   ev;
+// // Remove existing event on Kqueue
+// //  - Parameters
+// //      kqueue: FD number of Kqueue
+// //      filter: filter value for Kevent to remove
+// //      udata: user data (optional)
+// //  - Return(none)
+// void Connection::removeKevent(int kqueue, int filter, void* udata) {
+//     struct kevent   ev;
 
-    EV_SET(&ev, this->_ident, filter, EV_DELETE, 0, 0, udata);
-    if (kevent(kqueue, &ev, 1, 0, 0, 0) < 0)
-        throw std::runtime_error("kevent deletion Failed.");
-    if (filter == EVFILT_READ) {
-        this->_readEventTriggered = -1;
-    } else if (filter == EVFILT_WRITE) {
-        this->_writeEventTriggered = -1;
-    }
-}
+//     EV_SET(&ev, this->_ident, filter, EV_DELETE, 0, 0, udata);
+//     if (kevent(kqueue, &ev, 1, 0, 0, 0) < 0)
+//         throw std::runtime_error("kevent deletion Failed.");
+//     if (filter == EVFILT_READ) {
+//         this->_readEventTriggered = -1;
+//     } else if (filter == EVFILT_WRITE) {
+//         this->_writeEventTriggered = -1;
+//     }
+// }
 
 // Clean-up process to destroy the Socket instance.
 // mark close attribute, and remove all kevents enrolled.
 //  - Return(none)
 void Connection::dispose() {
-    int kqueue = this->_readEventTriggered;
-
     if (_closed == true)
         return;
     _closed = true;
     Log::verbose("Socket instance closing. [%d]", this->_ident);
-    if (this->_readEventTriggered >= 0) {
-        Log::verbose("Read Kevent removing.");
-        this->removeKevent(this->_readEventTriggered, EVFILT_READ, 0);
-    }
-    this->addKeventOneshot(kqueue, 0);
+	_eventHandler.addUserEvent(
+		new EventContext(this->_ident, EventContext::EV_DisposeConn, NULL)
+	);
 }
 
 std::string Connection::makeHeaderField(unsigned short fieldName) {
@@ -234,4 +248,22 @@ void Connection::listenSocket() {
         throw;
     }
     Log::verbose("Listening from Connection ( %d ), Port ( %d ).", _ident);
+}
+
+EventContext::EventResult Connection::passParsedRequest() {
+	VirtualServer* targetVirtualServer = NULL;
+
+	_eventHandler.addUserEvent(
+		new EventContext(this->_ident, EventContext::EV_SetVirtualServer, &targetVirtualServer)
+	);
+
+	while (targetVirtualServer == NULL) ;
+	if (targetVirtualServer->processRequest(*this) != VirtualServer::RC_SUCCESS)
+		return EventContext::ER_Done; // TODO: 작업 실패 시 리턴 달라야 할 필요??
+
+	_eventHandler.addEvent(
+		EVFILT_WRITE,
+		new EventContext(this->_ident, EventContext::EV_Response, this)
+	);
+	return EventContext::ER_Done;
 }

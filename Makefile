@@ -16,6 +16,8 @@ SRCS        =	VirtualServerConfig.cpp \
 				VirtualServer.cpp \
 				FTServer.cpp \
 				Connection.cpp \
+				EventHandler.cpp \
+				EventContext.cpp \
 				main.cpp
 
 #				Request.cpp

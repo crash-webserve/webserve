@@ -7,9 +7,17 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
+#include <fstream>
+#include <sstream>
+#include <cstring>
+#include <sys/stat.h>
+#include <dirent.h>
 #include "Location.hpp"
 #include "Connection.hpp"
 #include "Request.hpp"
+#include "constant.hpp"
+
+class Connection;
 
 typedef unsigned short port_t;
 

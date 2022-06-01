@@ -81,6 +81,7 @@ public:
     const std::string* getFirstHeaderFieldValueByName(const std::string& name) const;
     const std::string& getBody() const { return this->_body; };
 
+    void clearMessage();
     ReturnCaseOfRecv receive(int clientSocketFD);
 
 private:
