@@ -29,6 +29,7 @@ public:
     bool getAutoIndex() const { return this->_autoindex; };
     char getAllowedHTTPMethod() { return this->_allowedHTTPMethod; };
     std::vector<std::string> getCGIExtention() { return this->_cgiExtension; }
+    int getClientMaxBodySize() const;
 
     void setRoute(std::string route) { this->_route = route; };
     void setRoot(std::string root) { this->_root = root; };

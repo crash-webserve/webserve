@@ -1,10 +1,12 @@
 #include <sys/socket.h>
 #include <sstream>
 #include <string>
-#include <ctype.h>
+#include <cctype>
 #include <cassert>
 #include "Request.hpp"
 #include "constant.hpp"
+
+static void tolower(std::string& value);
 
 //  Destructor of Request object.
 Request::~Request() {
@@ -35,7 +37,9 @@ ReturnCaseOfRecv Request::receive(int clientSocketFD) {
 
     if (this->isReadyToProcess()) {
         this->_parsingStatus = this->parseMessage();
-        return RCRECV_PARSING_SUCCESS;
+        if (this->_parsingStatus == S_PARSING_FAIL)
+            this->_message.clear();
+        return RCRECV_PARSING_FINISH;
     }
 
     return RCRECV_SOME;
@@ -45,14 +49,14 @@ ReturnCaseOfRecv Request::receive(int clientSocketFD) {
 //  - Parameters(None)
 //  - Return: Whether request received the end of header section or not.
 bool Request::isReadyToProcess() const {
-    return (this->_message.find("\x0d\x0a\x0d\x0a") != std::string::npos);
+    return (this->_message.find("\r\n\r\n") != std::string::npos);
 }
 
 //  Return whether the body is chunked or not.
 //  - Parameters(None)
 //  - Return: Whether the body is chunked or not.
 bool Request::isChunked() const {
-    const std::string* headerFieldValue = getFirstHeaderFieldValueByName("Transfer-Encoding");
+    const std::string* headerFieldValue = getFirstHeaderFieldValueByName("transfer-encoding");
     if (headerFieldValue == NULL)
         return false;
 
@@ -90,38 +94,57 @@ void Request::appendMessage(const char* message) {
 //  Parse HTTP request message.
 //  - Parameters(None)
 //  - Return: Whether the parsing succeeded or not.
-ParsingResult Request::parseMessage() {
+Request::Status Request::parseMessage() {
     std::istringstream iss(this->_message);
     std::string line;
 
     if (!std::getline(iss, line, '\r'))
-        return PR_FAIL;
+        return S_PARSING_FAIL;
     if (this->parseRequestLine(line) == PR_FAIL)
-        return PR_FAIL;
+        return S_PARSING_FAIL;
 
+    this->_headerSection.clear();
     while (true) {
         iss.get();
         if (!std::getline(iss, line, '\r'))
-            return PR_FAIL;
+            return S_PARSING_FAIL;
         if (line.empty())
             break;
         if (parseHeader(line) == PR_FAIL)
-            return PR_FAIL;
+            return S_PARSING_FAIL;
     }
 
     if (iss.get() != '\n')
-        return PR_FAIL;
+        return S_PARSING_FAIL;
+
+    if (this->_method == (HTTP::RM_GET | HTTP::RM_DELETE)) {
+        this->_message.erase(0, iss.tellg());
+        return S_PARSING_SUCCESS;
+    }
 
     if (this->isChunked()) {
-        if (parseChunkToBody(iss) == PR_FAIL)
-            return PR_FAIL;
+        if (this->parseChunkToBody(iss) == PR_FAIL)
+            return S_PARSING_FAIL;
     }
-    else
-        this->_body = this->_message.substr(iss.tellg());
+    else {
+        const std::string* headerFieldValue = getFirstHeaderFieldValueByName("content-length");
+        if (headerFieldValue != NULL) {
+            std::istringstream sizeStream(*headerFieldValue);
+            unsigned long bodySize;
+            sizeStream >> bodySize;
+            if (!sizeStream || sizeStream.get() != EOF)
+                return S_PARSING_FAIL;
+            this->_body = this->_message.substr(iss.tellg(), bodySize);
+        }
+        else if (iss.get() != EOF) {
+            this->_message.clear();
+            return S_LENGTH_REQUIRED;
+        }
+    }
 
-    this->_message.clear();
+    this->_message.erase(0, static_cast<unsigned long>(iss.tellg()) + this->_body.length());
 
-    return PR_SUCCESS;
+    return S_PARSING_SUCCESS;
 }
 
 //  Parse HTTP request line.
@@ -131,16 +154,10 @@ ParsingResult Request::parseRequestLine(const std::string& requestLine) {
     std::istringstream iss(requestLine);
     std::string token;
 
-    if (iss >> token)
-        this->_method = requestMethodByString(token);
-    else
-        return PR_FAIL;
-
-    if (iss >> token)
-        this->_target = token;
-    else
-        return PR_FAIL;
-
+    iss >> token;
+    this->_method = requestMethodByString(token);
+    iss >> token;
+    this->_target = token;
     if (iss >> token)
         return parseHTTPVersion(token);
     else
@@ -184,14 +201,15 @@ ParsingResult Request::parseHeader(const std::string& headerField) {
         return PR_FAIL;
     if (!iss.get(ch))
         return PR_FAIL;
-    if (!(ch == '\x09' || ch == ' '))
+    if (!(ch == '\t' || ch == ' '))
         iss.putback(ch);
     if (!std::getline(iss, value))
         return PR_FAIL;
     ch = value[value.length() - 1];
-    if (ch == '\x09' || ch == ' ')
+    if (ch == '\t' || ch == ' ')
         value.erase(value.length() - 1);
 
+    tolower(name);
     this->_headerSection.push_back(new HeaderSectionElementType(name, value));
 
     return PR_SUCCESS;
@@ -202,22 +220,21 @@ ParsingResult Request::parseHeader(const std::string& headerField) {
 //  - Return: Whether the parsing succeeded or not.
 ParsingResult Request::parseChunkToBody(std::istringstream& iss) {
     this->_body.clear();
-    int contentLength = 0;
+
     while (true) {
         const std::ios_base::fmtflags ff = iss.flags();
         iss.setf(std::ios_base::hex, std::ios_base::basefield);
         int chunkLength;
+        if (std::isspace(iss.peek()))
+            return PR_FAIL;
         iss >> chunkLength;
-        contentLength += chunkLength;
         iss.flags(ff);
         iss.get();
         iss.get();
-        if (!iss)
-            return PR_FAIL;
-        std::string chunk;
-        std::getline(iss, chunk, '\r');
+        std::string chunk(chunkLength, '\0');
+        iss.read(&chunk[0], chunkLength);
         this->_body += chunk;
-        if (iss.get() != '\n')
+        if (iss.get() != '\r' || iss.get() != '\n')
             return PR_FAIL;
         if (chunkLength == 0)
             break;
@@ -242,4 +259,12 @@ HTTP::RequestMethod Request::requestMethodByString(const std::string& token) {
         method = HTTP::RM_UNKNOWN;
 
     return method;
+}
+
+//  make value to lower case string.
+//  - Parameters value: the string to make lower case.
+//  - Return(None)
+static void tolower(std::string& value) {
+    for (std::string::iterator iter = value.begin(); iter != value.end(); ++iter)
+        *iter = tolower(*iter);
 }

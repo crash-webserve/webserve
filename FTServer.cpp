@@ -221,7 +221,7 @@ void FTServer::read(Connection* connection) {
             break;
         case RCRECV_SOME:
             break;
-        case RCRECV_PARSING_SUCCESS:
+        case RCRECV_PARSING_FINISH:
             VirtualServer& targetVirtualServer = this->getTargetVirtualServer(*connection);
             if (targetVirtualServer.processRequest(*connection) == VirtualServer::RC_SUCCESS)
                 connection->addKevent(this->_kqueue, EVFILT_WRITE, NULL);
@@ -236,7 +236,7 @@ void FTServer::read(Connection* connection) {
 VirtualServer& FTServer::getTargetVirtualServer(Connection& clientConnection) {
     //  TODO Implement real behavior. Change the return type from reference to pointer type.
     int cntVirtualServers = this->_vVirtualServers.size();
-    const std::string* tHostName = clientConnection.getRequest().getFirstHeaderFieldValueByName("Host");
+    const std::string* tHostName = clientConnection.getRequest().getFirstHeaderFieldValueByName("host");
     if (tHostName != NULL) {
         std::string tServerName = tHostName->substr(0, tHostName->find_first_of(":"));
         for (int i = 0; i < cntVirtualServers; i++) {

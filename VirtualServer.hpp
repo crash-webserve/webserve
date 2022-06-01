@@ -112,8 +112,11 @@ private:
 
     void setStatusLine(Connection& clientConnection, HTTP::Status::Index index);
 
+    int set400Response(Connection& clientConnection);
     int set404Response(Connection& clientConnection);
     int set405Response(Connection& clientConnection, const Location* locations);
+    int set411Response(Connection& clientConnection);
+    int set413Response(Connection& clientConnection);
     int set500Response(Connection& clientConnection);
     int setListResponse(Connection& clientConnection, const std::string& path);
 };  // VirtualServer

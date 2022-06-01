@@ -47,12 +47,12 @@ enum HeaderFieldName{
 //      RCRECV_ZERO: Nothing received.
 //      RCRECV_SOME: Received some message but not enough to process.
 //      RCRECV_PARSING_FAIL: Received enough message to process, but failed parsing.
-//      RCRECV_PARSING_SUCCESS: Received enough message to process, and succeeded parsing.
+//      RCRECV_PARSING_FINISH: Received enough message to process, and succeeded parsing.
 enum ReturnCaseOfRecv {
     RCRECV_ERROR = -1,
     RCRECV_ZERO,
     RCRECV_SOME,
-    RCRECV_PARSING_SUCCESS,
+    RCRECV_PARSING_FINISH,
 };
 
 //  Accumulate HTTP request message and parse it and store.
@@ -69,6 +69,12 @@ enum ReturnCaseOfRecv {
 //      _parsingStatus: store parsing status.
 class Request {
 public:
+    enum Status {
+        S_PARSING_FAIL,
+        S_PARSING_SUCCESS,
+        S_LENGTH_REQUIRED,
+    };
+
     typedef std::pair<std::string, std::string> HeaderSectionElementType;
     typedef std::vector<HeaderSectionElementType*> HeaderSectionType;
 
@@ -82,7 +88,8 @@ public:
     const std::string* getFirstHeaderFieldValueByName(const std::string& name) const;
     const std::string& getBody() const { return this->_body; };
 
-    bool isParsingFail() const { return this->parsingStatus == PR_FAIL; };
+    bool isParsingFail() const { return this->_parsingStatus == S_PARSING_FAIL; };
+    bool isLengthRequired() const { return this->_parsingStatus == S_LENGTH_REQUIRED; };
 
     ReturnCaseOfRecv receive(int clientSocketFD);
 
@@ -98,7 +105,7 @@ private:
 
     std::string _body;
 
-    ParsingResult _parsingStatus;
+    Status _parsingStatus;
 
     bool isReadyToProcess() const;
     bool isChunked() const;
@@ -106,7 +113,7 @@ private:
     ssize_t receiveMessage(int clientSocketFD);
     void appendMessage(const char* message);
 
-    ParsingResult parseMessage();
+    Status parseMessage();
     ParsingResult parseRequestLine(const std::string& requestLine);
     ParsingResult parseHTTPVersion(const std::string& token);
     ParsingResult parseHeader(const std::string& headerField);
