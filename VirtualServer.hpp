@@ -104,6 +104,8 @@ private:
 
     std::map<std::string, std::string> _others;
 
+    const Location* getMatchingLocation(const Request& request);
+
     int processGET(Connection& clientConnection);
     int processPOST(Connection& clientConnection);
     int processDELETE(Connection& clientConnection);

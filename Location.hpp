@@ -21,7 +21,7 @@ public:
     Location();
     bool isRouteMatch(const std::string& resourceURI) const;
     bool isRequestMethodAllowed(HTTP::RequestMethod requestMethod) const;
-    void getRepresentationPath(const std::string& resourceURI, std::string& representationPath) const;
+    void updateRepresentationPath(const std::string& resourceURI, std::string& representationPath) const;
 
     std::string getRoute() { return this->_route; };
     std::string getRoot() const { return this->_root; };
