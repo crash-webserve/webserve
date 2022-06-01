@@ -97,9 +97,9 @@ void FTServer::init() {
     this->initializeConnection(portsOpen, portsOpen.size());
 }
 
-//  TODO Implement real behavior.
 //  Initialize all virtual servers from virtual server config set.
 void FTServer::initializeVirtualServers() {
+    this->addDummyVirtualServer();
     for (VirtualServerConfigIter itr = this->_defaultConfigs.begin(); itr != this->_defaultConfigs.end(); itr++) {
         VirtualServer* newVirtualServer = this->makeVirtualServer(*itr);
         this->_vVirtualServers.push_back(newVirtualServer);
@@ -107,7 +107,14 @@ void FTServer::initializeVirtualServers() {
     }
 }
 
-//  TODO Implement real one virtual server using config
+//  make dummy virtualServer.
+//  dummy virtualServer process request targetting no virtualServer.
+//  - Parameters(None)
+//  - Return(None)
+void FTServer::addDummyVirtualServer() {
+    this->_vVirtualServers.push_back(new VirtualServer());
+}
+
 VirtualServer*    FTServer::makeVirtualServer(VirtualServerConfig* virtualServerConf) {
     VirtualServer* newVirtualServer;
     directiveContainer config = virtualServerConf->getConfigs();           // original config in server Block
@@ -166,7 +173,6 @@ VirtualServer*    FTServer::makeVirtualServer(VirtualServerConfig* virtualServer
 }
 
 // Prepares sockets as descripted by the server configuration.
-// TODO: make it works with actuall server config!
 //  - Parameter
 //  - Return(none)
 void FTServer::initializeConnection(std::set<port_t>& ports, int size) {

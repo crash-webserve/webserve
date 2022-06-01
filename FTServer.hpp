@@ -66,6 +66,7 @@ private:
     int             _kqueue;
     bool            _alive;
 
+    void addDummyVirtualServer();
     VirtualServer* makeVirtualServer(VirtualServerConfig* serverConf);
     void acceptConnection(Connection* connection);
     void closeConnection(int ident);
