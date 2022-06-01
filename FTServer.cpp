@@ -221,9 +221,6 @@ void FTServer::read(Connection* connection) {
             break;
         case RCRECV_SOME:
             break;
-        case RCRECV_PARSING_FAIL:
-            //  TODO Implement behavior
-            break;
         case RCRECV_PARSING_SUCCESS:
             VirtualServer& targetVirtualServer = this->getTargetVirtualServer(*connection);
             if (targetVirtualServer.processRequest(*connection) == VirtualServer::RC_SUCCESS)

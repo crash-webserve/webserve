@@ -52,7 +52,6 @@ enum ReturnCaseOfRecv {
     RCRECV_ERROR = -1,
     RCRECV_ZERO,
     RCRECV_SOME,
-    RCRECV_PARSING_FAIL,
     RCRECV_PARSING_SUCCESS,
 };
 
@@ -66,6 +65,8 @@ enum ReturnCaseOfRecv {
 //      _minorVersion: Parsed major version.
 //      _headerSection: Parsed header field vector.
 //      _body: Parsed payload body.
+//
+//      _parsingStatus: store parsing status.
 class Request {
 public:
     typedef std::pair<std::string, std::string> HeaderSectionElementType;
@@ -81,6 +82,8 @@ public:
     const std::string* getFirstHeaderFieldValueByName(const std::string& name) const;
     const std::string& getBody() const { return this->_body; };
 
+    bool isParsingFail() const { return this->parsingStatus == PR_FAIL; };
+
     ReturnCaseOfRecv receive(int clientSocketFD);
 
 private:
@@ -94,6 +97,8 @@ private:
     HeaderSectionType _headerSection;
 
     std::string _body;
+
+    ParsingResult _parsingStatus;
 
     ssize_t receiveMessage(int clientSocketFD);
     void appendMessage(const char* message);

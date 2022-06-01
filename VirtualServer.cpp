@@ -48,8 +48,13 @@ VirtualServer::VirtualServer(port_t portNumber, const std::string& name)
 //      kqueueFD: The kqueue fd is where to add write event for response.
 //  - Return: See the type definition.
 VirtualServer::ReturnCode VirtualServer::processRequest(Connection& clientConnection) {
-    int returnCode = 0;
+    if (clientConnection.getRequest().isParsingFail()) {
+        if (set400Response(clientConnection) == -1)
+            this->set500Response(clientConnection);
+        return VirtualServer::RC_SUCCESS;
+    }
 
+    int returnCode = 0;
     switch(clientConnection.getRequest().getMethod()) {
         case HTTP::RM_GET:
             returnCode = processGET(clientConnection);
@@ -61,6 +66,7 @@ VirtualServer::ReturnCode VirtualServer::processRequest(Connection& clientConnec
             returnCode = processDELETE(clientConnection);
             break;
         default:
+            returnCode = set405Response(clientConnection, NULL);
             break;
     }
 
@@ -209,7 +215,7 @@ int VirtualServer::processPOST(Connection& clientConnection) {
 
     const Location* locationPointer = this->getMatchingLocation(request);
     if (locationPointer == NULL)
-        return this->set404Response(clientConnection);
+        return this->set400Response(clientConnection);
 
     const Location& location = *locationPointer;
 

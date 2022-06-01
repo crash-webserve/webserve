@@ -34,10 +34,8 @@ ReturnCaseOfRecv Request::receive(int clientSocketFD) {
         return RCRECV_ZERO;
 
     if (this->isReadyToProcess()) {
-        if (this->parseMessage() == PR_SUCCESS) //  TODO Pass valid string to parseMessage and left remain string.
-            return RCRECV_PARSING_SUCCESS;
-        else
-            return RCRECV_PARSING_FAIL;
+        this->_parsingStatus = this->parseMessage();
+        return RCRECV_PARSING_SUCCESS;
     }
 
     return RCRECV_SOME;
