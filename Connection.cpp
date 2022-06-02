@@ -71,14 +71,12 @@ EventContext::EventResult Connection::receive() {
 	switch (result) {
 	case RCRECV_ERROR:
 		Log::debug("Error has been occured while recieving from [%d].", this->_ident);
-	case RCRECV_PARSING_FAIL:
-		Log::debug("Wrong Request from [%d].", this->_ident);
 	case RCRECV_ZERO:
 		this->dispose();
 		return EventContext::ER_Remove;
 	case RCRECV_SOME:
 		break;
-	case RCRECV_PARSING_SUCCESS:
+	case RCRECV_PARSING_FINISH:
 		return this->passParsedRequest();
 	}
 	return EventContext::ER_Continue;
@@ -177,28 +175,6 @@ void Connection::dispose() {
 	_eventHandler.addUserEvent(
 		new EventContext(this->_ident, EventContext::EV_DisposeConn, NULL)
 	);
-}
-
-std::string Connection::makeHeaderField(unsigned short fieldName) {
-    switch (fieldName)
-    {
-    case HTTP::DATE:
-        return makeDateHeaderField();
-    }
-    return ""; // TODO delete
-}
-
-// Find the current time based on GMT
-//  - Parameters(None)
-//  - Return
-//      Current time based on GMT(std::string)
-std::string Connection::makeDateHeaderField() {
-    char cDate[1000];
-    time_t rr = time(0);
-    struct tm tm = *gmtime(&rr);
-    strftime(cDate, sizeof(cDate), "%a, %d %b %Y %H:%M:%S GMT", &tm);
-    std::string dateStr = cDate;
-    return dateStr;
 }
 
 // Creates new Connection and set for the attribute.

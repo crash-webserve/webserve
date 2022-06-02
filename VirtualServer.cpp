@@ -16,6 +16,9 @@ const Status Status::_array[] = {
     { "500", "internal server error" },
 };
 
+static void updateContentType(const std::string& name, std::string& type);
+static void updateExtension(const std::string& name, std::string& extension);
+
 //  Default constructor of VirtualServer.
 //  - Parameters(None)
 VirtualServer::VirtualServer() 
@@ -38,9 +41,21 @@ VirtualServer::VirtualServer(port_t portNumber, const std::string& name)
 //      kqueueFD: The kqueue fd is where to add write event for response.
 //  - Return: See the type definition.
 VirtualServer::ReturnCode VirtualServer::processRequest(Connection& clientConnection) {
-    int returnCode = 0;
+    const Request& request = clientConnection.getRequest();
 
-    switch(clientConnection.getRequest().getMethod()) {
+    if (request.isParsingFail()) {
+        if (this->set400Response(clientConnection) == -1)
+            this->set500Response(clientConnection);
+        return VirtualServer::RC_SUCCESS;
+    }
+    else if (request.isLengthRequired()) {
+        if (this->set411Response(clientConnection) == -1)
+            this->set500Response(clientConnection);
+        return VirtualServer::RC_SUCCESS;
+    }
+
+    int returnCode = 0;
+    switch(request.getMethod()) {
         case HTTP::RM_GET:
             returnCode = processGET(clientConnection);
             break;
@@ -51,6 +66,7 @@ VirtualServer::ReturnCode VirtualServer::processRequest(Connection& clientConnec
             returnCode = processDELETE(clientConnection);
             break;
         default:
+            returnCode = set405Response(clientConnection, NULL);
             break;
     }
 
@@ -58,6 +74,22 @@ VirtualServer::ReturnCode VirtualServer::processRequest(Connection& clientConnec
         this->set500Response(clientConnection);
 
     return VirtualServer::RC_SUCCESS;
+}
+
+//  get matching location for request.
+//  - Parameters request: request to search.
+//  - Return: matching location, if no location match, NULL would be returned.
+const Location* VirtualServer::getMatchingLocation(const Request& request) {
+    const std::string& targetResourceURI = request.getTargetResourceURI();
+
+    for (std::vector<Location*>::const_iterator iter = this->_location.begin(); iter != this->_location.end(); ++iter) {
+        const Location* const & locationPointer = *iter;
+
+        if (locationPointer->isRouteMatch(targetResourceURI))
+            return locationPointer;
+    }
+
+    return NULL;
 }
 
 //  Process GET request.
@@ -69,72 +101,106 @@ int VirtualServer::processGET(Connection& clientConnection) {
     struct stat buf;
     std::string targetRepresentationURI;
 
-    std::vector<Location*>::const_iterator iter;
-    for (iter = this->_location.begin(); iter != this->_location.end(); ++iter) {
-        const Location& location = **iter;
+    const Location* locationPointer = this->getMatchingLocation(request);
+    if (locationPointer == NULL)
+        return this->set404Response(clientConnection);
 
-        if (!location.isRouteMatch(targetResourceURI))
-            continue;
+    const Location& location = *locationPointer;
 
-        if (!location.isRequestMethodAllowed(request.getMethod()))
-            return this->set405Response(clientConnection, &location);
+    if (!location.isRequestMethodAllowed(request.getMethod()))
+        return this->set405Response(clientConnection, &location);
 
-        location.getRepresentationPath(targetResourceURI, targetRepresentationURI);
-        if (stat(targetRepresentationURI.c_str(), &buf) == 0
-                && (buf.st_mode & S_IFREG) != 0) {
-            this->setStatusLine(clientConnection, Status::I_200);
+    location.updateRepresentationPath(targetResourceURI, targetRepresentationURI);
+    if (stat(targetRepresentationURI.c_str(), &buf) == 0
+            && (buf.st_mode & S_IFREG) != 0) {
+        this->setStatusLine(clientConnection, Status::I_200);
 
-            // TODO 적절한 헤더 필드 추가하기(content-length)
-            clientConnection.appendResponseMessage("Date: ");
-            clientConnection.appendResponseMessage(clientConnection.makeHeaderField(HTTP::DATE));
-            clientConnection.appendResponseMessage("\r\n\r\n");
+        clientConnection.appendResponseMessage("Server: crash-webserve\r\n");
+        clientConnection.appendResponseMessage("Date: ");
+        clientConnection.appendResponseMessage(this->makeHeaderField(HTTP::DATE));
+        clientConnection.appendResponseMessage("\r\n");
+        clientConnection.appendResponseMessage("Content-Type: ");
+        std::string type;
+        updateContentType(targetRepresentationURI, type);
+        clientConnection.appendResponseMessage(type);
+        clientConnection.appendResponseMessage("\r\n");
+        clientConnection.appendResponseMessage("Content-Length: ");
+        std::ostringstream oss;
+        oss << buf.st_size;
+        clientConnection.appendResponseMessage(oss.str().c_str());
+        clientConnection.appendResponseMessage("\r\n");
+        clientConnection.appendResponseMessage("Last-Modified: ");
+        const struct timespec lastModified = buf.st_mtimespec;
+        const struct tm tm = *gmtime(&lastModified.tv_sec);
+        char lastModifiedString[BUF_SIZE];
+        strftime(lastModifiedString, BUF_SIZE, "%a, %d %b %Y %H:%M:%S GMT", &tm);
+        clientConnection.appendResponseMessage(lastModifiedString);
+        clientConnection.appendResponseMessage("\r\n");
+        clientConnection.appendResponseMessage("Connection: keep-alive\r\n");
+        clientConnection.appendResponseMessage("\r\n");
 
-            std::ifstream targetRepresentation(targetRepresentationURI, std::ios_base::binary | std::ios_base::ate);
-            if (!targetRepresentation.is_open())
-                return -1;
+        std::ifstream targetRepresentation(targetRepresentationURI, std::ios_base::binary | std::ios_base::ate);
+        if (!targetRepresentation.is_open())
+            return -1;
 
-            std::ifstream::pos_type size = targetRepresentation.tellg();
-            std::string str(size, '\0');
-            targetRepresentation.seekg(0);
-            if (targetRepresentation.read(&str[0], size))
-                clientConnection.appendResponseMessage(str.c_str());
+        std::ifstream::pos_type size = targetRepresentation.tellg();
+        std::string str(size, '\0');
+        targetRepresentation.seekg(0);
+        if (targetRepresentation.read(&str[0], size))
+            clientConnection.appendResponseMessage(str.c_str());
 
-            targetRepresentation.close();
+        targetRepresentation.close();
 
-            return 0;
-        }
-
-        if (stat(location.getIndex().c_str(), &buf) == 0
-                && (buf.st_mode & S_IFREG) != 0) {
-            this->setStatusLine(clientConnection, Status::I_200);
-
-            // TODO 적절한 헤더 필드 추가하기(content-length)
-            clientConnection.appendResponseMessage("Date: ");
-            clientConnection.appendResponseMessage(clientConnection.makeHeaderField(HTTP::DATE));
-            clientConnection.appendResponseMessage("\r\n\r\n");
-
-            std::ifstream targetRepresentation(location.getIndex(), std::ios_base::binary | std::ios_base::ate);
-            if (!targetRepresentation.is_open())
-                return -1;
-
-            std::ifstream::pos_type size = targetRepresentation.tellg();
-            std::string str(size, '\0');
-            targetRepresentation.seekg(0);
-            if (targetRepresentation.read(&str[0], size))
-                clientConnection.appendResponseMessage(str.c_str());
-
-            targetRepresentation.close();
-
-            return 0;
-        }
-
-        if (location.getAutoIndex()
-                && stat(targetRepresentationURI.c_str(), &buf) == 0
-                && (buf.st_mode & S_IFDIR) != 0)
-            return this->setListResponse(clientConnection, targetRepresentationURI.c_str());
-
-        break;
+        return 0;
     }
+
+    if (stat(location.getIndex().c_str(), &buf) == 0
+            && (buf.st_mode & S_IFREG) != 0) {
+        this->setStatusLine(clientConnection, Status::I_200);
+
+        clientConnection.appendResponseMessage("Server: crash-webserve\r\n");
+        clientConnection.appendResponseMessage("Date: ");
+        clientConnection.appendResponseMessage(this->makeHeaderField(HTTP::DATE));
+        clientConnection.appendResponseMessage("\r\n");
+        clientConnection.appendResponseMessage("Content-Type: ");
+        std::string type;
+        updateContentType(targetRepresentationURI, type);
+        clientConnection.appendResponseMessage(type);
+        clientConnection.appendResponseMessage("\r\n");
+        clientConnection.appendResponseMessage("Content-Length: ");
+        std::ostringstream oss;
+        oss << buf.st_size;
+        clientConnection.appendResponseMessage(oss.str().c_str());
+        clientConnection.appendResponseMessage("\r\n");
+        clientConnection.appendResponseMessage("Last-Modified: ");
+        const struct timespec lastModified = buf.st_mtimespec;
+        const struct tm tm = *gmtime(&lastModified.tv_sec);
+        char lastModifiedString[BUF_SIZE];
+        strftime(lastModifiedString, BUF_SIZE, "%a, %d %b %Y %H:%M:%S GMT", &tm);
+        clientConnection.appendResponseMessage(lastModifiedString);
+        clientConnection.appendResponseMessage("\r\n");
+        clientConnection.appendResponseMessage("Connection: keep-alive\r\n");
+        clientConnection.appendResponseMessage("\r\n");
+
+        std::ifstream targetRepresentation(location.getIndex(), std::ios_base::binary | std::ios_base::ate);
+        if (!targetRepresentation.is_open())
+            return -1;
+
+        std::ifstream::pos_type size = targetRepresentation.tellg();
+        std::string str(size, '\0');
+        targetRepresentation.seekg(0);
+        if (targetRepresentation.read(&str[0], size))
+            clientConnection.appendResponseMessage(str.c_str());
+
+        targetRepresentation.close();
+
+        return 0;
+    }
+
+    if (location.getAutoIndex()
+            && stat(targetRepresentationURI.c_str(), &buf) == 0
+            && (buf.st_mode & S_IFDIR) != 0)
+        return this->setListResponse(clientConnection, targetRepresentationURI.c_str());
 
     return this->set404Response(clientConnection);
 }
@@ -147,38 +213,37 @@ int VirtualServer::processPOST(Connection& clientConnection) {
     const std::string& targetResourceURI = request.getTargetResourceURI();
     std::string targetRepresentationURI;
 
-    std::vector<Location*>::const_iterator iter;
-    for (iter = this->_location.begin(); iter != this->_location.end(); ++iter) {
-        const Location& location = **iter;
+    const Location* locationPointer = this->getMatchingLocation(request);
+    if (locationPointer == NULL)
+        return this->set400Response(clientConnection);
 
-        if (!location.isRouteMatch(targetResourceURI))
-            continue;
+    const Location& location = *locationPointer;
 
-        location.getRepresentationPath(targetResourceURI, targetRepresentationURI);
-        if (!location.isRequestMethodAllowed(request.getMethod()))
-            return this->set405Response(clientConnection, &location);
+    if (request.getBody().length() > location.getClientMaxBodySize())
+        return this->set413Response(clientConnection);
 
-        std::ofstream out(targetRepresentationURI.c_str());
-        if (!out.is_open())
-            return -1;
+    location.updateRepresentationPath(targetResourceURI, targetRepresentationURI);
+    if (!location.isRequestMethodAllowed(request.getMethod()))
+        return this->set405Response(clientConnection, &location);
 
-        const std::string& requestBody = clientConnection.getRequest().getBody();
-        out << requestBody;
-        out.close();
+    std::ofstream out(targetRepresentationURI.c_str());
+    if (!out.is_open())
+        return -1;
 
-        this->setStatusLine(clientConnection, Status::I_200);
+    const std::string& requestBody = clientConnection.getRequest().getBody();
+    out << requestBody;
+    out.close();
 
-        // TODO 적절한 헤더 필드 추가하기(content-length)
-        clientConnection.appendResponseMessage("Date: ");
-        clientConnection.appendResponseMessage(clientConnection.makeHeaderField(HTTP::DATE));
-        clientConnection.appendResponseMessage("\r\n\r\n");
+    this->setStatusLine(clientConnection, Status::I_200);
 
-        // TODO 적절한 바디 생성하기
+    // TODO 적절한 헤더 필드 추가하기(content-length)
+    clientConnection.appendResponseMessage("Date: ");
+    clientConnection.appendResponseMessage(this->makeHeaderField(HTTP::DATE));
+    clientConnection.appendResponseMessage("\r\n\r\n");
 
-        return 0;
-    }
+    // TODO 적절한 바디 생성하기
 
-    return this->set405Response(clientConnection, NULL);
+    return 0;
 }
 
 //  Process DELETE request.
@@ -190,33 +255,31 @@ int VirtualServer::processDELETE(Connection& clientConnection) {
     struct stat buf;
     std::string targetRepresentationURI;
 
-    std::vector<Location*>::const_iterator iter;
-    for (iter = this->_location.begin(); iter != this->_location.end(); ++iter) {
-        const Location& location = **iter;
+    const Location* locationPointer = this->getMatchingLocation(request);
+    if (locationPointer == NULL)
+        return this->set404Response(clientConnection);
 
-        if (!location.isRouteMatch(targetResourceURI))
-            continue;
+    const Location& location = *locationPointer;
 
-        location.getRepresentationPath(targetResourceURI, targetRepresentationURI);
-        if (stat(targetRepresentationURI.c_str(), &buf) == 0
-                && (buf.st_mode & S_IFDIR) != 0) {
-            if (!location.isRequestMethodAllowed(request.getMethod()))
-                return this->set405Response(clientConnection, &location);
+    if (!location.isRequestMethodAllowed(request.getMethod()))
+        return this->set405Response(clientConnection, &location);
 
-            if (unlink(targetRepresentationURI.c_str()) == -1)
-                return this->set500Response(clientConnection);
+    location.updateRepresentationPath(targetResourceURI, targetRepresentationURI);
+    if (stat(targetRepresentationURI.c_str(), &buf) == 0) {
 
-            this->setStatusLine(clientConnection, Status::I_200);
+        if (unlink(targetRepresentationURI.c_str()) == -1)
+            return -1;
 
-            // TODO 적절한 헤더 필드 추가하기(content-length)
-            clientConnection.appendResponseMessage("Date: ");
-            clientConnection.appendResponseMessage(clientConnection.makeHeaderField(HTTP::DATE));
-            clientConnection.appendResponseMessage("\r\n\r\n");
+        this->setStatusLine(clientConnection, Status::I_200);
 
-            // TODO 적절한 바디 설정하기
+        // TODO 적절한 헤더 필드 추가하기(content-length)
+        clientConnection.appendResponseMessage("Date: ");
+        clientConnection.appendResponseMessage(this->makeHeaderField(HTTP::DATE));
+        clientConnection.appendResponseMessage("\r\n\r\n");
 
-            return 0;
-        }
+        // TODO 적절한 바디 설정하기
+
+        return 0;
     }
 
     return this->set404Response(clientConnection);
@@ -233,6 +296,22 @@ void VirtualServer::setStatusLine(Connection& clientConnection, Status::Index in
     clientConnection.appendResponseMessage("\r\n");
 }
 
+//  set response message with 400 status.
+//  - Parameters clientConnection: The client connection.
+//  - Return: upon successful completion a value of 0 is returned.
+//      otherwise, a value of -1 is returned.
+int VirtualServer::set400Response(Connection& clientConnection) {
+    clientConnection.clearResponseMessage();
+    this->setStatusLine(clientConnection, Status::I_400);
+
+    // TODO implement
+    clientConnection.appendResponseMessage("Date: ");
+    clientConnection.appendResponseMessage(this->makeHeaderField(HTTP::DATE));
+    clientConnection.appendResponseMessage("\r\n\r\n");
+
+    return 0;
+}
+
 //  set response message with 404 status.
 //  - Parameters clientConnection: The client connection.
 //  - Return(None)
@@ -242,7 +321,7 @@ int VirtualServer::set404Response(Connection& clientConnection) {
 
     // TODO implement
     clientConnection.appendResponseMessage("Date: ");
-    clientConnection.appendResponseMessage(clientConnection.makeHeaderField(HTTP::DATE));
+    clientConnection.appendResponseMessage(this->makeHeaderField(HTTP::DATE));
     clientConnection.appendResponseMessage("\r\n\r\n");
 
     return 0;
@@ -257,19 +336,54 @@ int VirtualServer::set405Response(Connection& clientConnection, const Location* 
 
     // TODO implement
     clientConnection.appendResponseMessage("Date: ");
-    clientConnection.appendResponseMessage(clientConnection.makeHeaderField(HTTP::DATE));
+    clientConnection.appendResponseMessage(this->makeHeaderField(HTTP::DATE));
     clientConnection.appendResponseMessage("\r\n");
 
-    clientConnection.appendResponseMessage("Allow: ");
-    std::string tAllowMethod = "";
-    if (location->isRequestMethodAllowed(HTTP::RM_GET))
-        tAllowMethod += "GET, ";
-    if (location->isRequestMethodAllowed(HTTP::RM_POST))
-        tAllowMethod += "POST, ";
-    if (location->isRequestMethodAllowed(HTTP::RM_DELETE))
-        tAllowMethod += "DELETE, ";
-    tAllowMethod = tAllowMethod.substr(0, tAllowMethod.find_last_of(","));
-    clientConnection.appendResponseMessage(tAllowMethod);
+    if (location != NULL) {
+        clientConnection.appendResponseMessage("Allow: ");
+        std::string tAllowMethod = "";
+        if (location->isRequestMethodAllowed(HTTP::RM_GET))
+            tAllowMethod += "GET, ";
+        if (location->isRequestMethodAllowed(HTTP::RM_POST))
+            tAllowMethod += "POST, ";
+        if (location->isRequestMethodAllowed(HTTP::RM_DELETE))
+            tAllowMethod += "DELETE, ";
+        tAllowMethod = tAllowMethod.substr(0, tAllowMethod.find_last_of(","));
+        clientConnection.appendResponseMessage(tAllowMethod);
+        clientConnection.appendResponseMessage("\r\n");
+    }
+    clientConnection.appendResponseMessage("\r\n");
+
+    return 0;
+}
+
+//  set response message with 411 status.
+//  - Parameters clientConnection: The client connection.
+//  - Return: upon successful completion a value of 0 is returned.
+//      otherwise, a value of -1 is returned.
+int VirtualServer::set411Response(Connection& clientConnection) {
+    clientConnection.clearResponseMessage();
+    this->setStatusLine(clientConnection, Status::I_411);
+
+    // TODO implement
+    clientConnection.appendResponseMessage("Date: ");
+    clientConnection.appendResponseMessage(this->makeHeaderField(HTTP::DATE));
+    clientConnection.appendResponseMessage("\r\n\r\n");
+
+    return 0;
+}
+
+//  set response message with 413 status.
+//  - Parameters clientConnection: The client connection.
+//  - Return: upon successful completion a value of 0 is returned.
+//      otherwise, a value of -1 is returned.
+int VirtualServer::set413Response(Connection& clientConnection) {
+    clientConnection.clearResponseMessage();
+    this->setStatusLine(clientConnection, Status::I_413);
+
+    // TODO implement
+    clientConnection.appendResponseMessage("Date: ");
+    clientConnection.appendResponseMessage(this->makeHeaderField(HTTP::DATE));
     clientConnection.appendResponseMessage("\r\n\r\n");
 
     return 0;
@@ -284,7 +398,7 @@ int VirtualServer::set500Response(Connection& clientConnection) {
 
     // TODO append header section and body
     clientConnection.appendResponseMessage("Date: ");
-    clientConnection.appendResponseMessage(clientConnection.makeHeaderField(HTTP::DATE));
+    clientConnection.appendResponseMessage(this->makeHeaderField(HTTP::DATE));
     clientConnection.appendResponseMessage("\r\n\r\n");
 
     return 0;
@@ -323,7 +437,7 @@ int VirtualServer::setListResponse(Connection& clientConnection, const std::stri
     clientConnection.appendResponseMessage("Connection: keep-alive\r\n");
     clientConnection.appendResponseMessage("Content-Type: text/html\r\n");
     clientConnection.appendResponseMessage("Date: ");
-    clientConnection.appendResponseMessage(clientConnection.makeHeaderField(HTTP::DATE));
+    clientConnection.appendResponseMessage(this->makeHeaderField(HTTP::DATE));
     clientConnection.appendResponseMessage("\r\n");
     clientConnection.appendResponseMessage("Server: crash-webserve\r\n");
     clientConnection.appendResponseMessage("\r\n");
@@ -361,4 +475,62 @@ int VirtualServer::setListResponse(Connection& clientConnection, const std::stri
     clientConnection.appendResponseMessage("</pre><hr></body></html>");
 
     return 0;
+}
+
+std::string VirtualServer::makeHeaderField(unsigned short fieldName) {
+    switch (fieldName)
+    {
+    case HTTP::DATE:
+        return makeDateHeaderField();
+    // case HTTP::ALLOW:
+    //     return makeAllowHeaderField();
+    }
+    return ""; // TODO delete
+}
+
+// Find the current time based on GMT
+//  - Parameters(None)
+//  - Return
+//      Current time based on GMT(std::string)
+std::string VirtualServer::makeDateHeaderField() {
+    char cDate[1000];
+    time_t rr = time(0);
+    struct tm tm = *gmtime(&rr);
+    strftime(cDate, sizeof(cDate), "%a, %d %b %Y %H:%M:%S GMT", &tm);
+    std::string dateStr = cDate;
+    return dateStr;
+}
+
+// std::string Connection::makeAllowHeaderField() {
+    
+// }
+
+//  set 'type' of 'name'
+//  - Parameters
+//      name: name of file
+//      type: type to set
+//  - Return(None)
+static void updateContentType(const std::string& name, std::string& type) {
+    std::string extension;
+    updateExtension(name, extension);
+    if (std::strcmp(extension.c_str(), "txt") == 0)
+        type = "text/plain";
+    else if (std::strcmp(extension.c_str(), "html") == 0)
+        type = "text/html";
+    else
+        type = "application/octet-stream";
+}
+
+//  set 'extension' of 'name'
+//  - Parameters
+//      name: name of file
+//      type: type to set
+//  - Return(None)
+static void updateExtension(const std::string& name, std::string& extension) {
+    const std::string::size_type extensionBeginPosition = name.rfind('.') + 1;
+    extension.clear();
+    if (extensionBeginPosition !=  std::string::npos)
+        extension = name.c_str() + extensionBeginPosition;
+    else
+        return;
 }

@@ -244,12 +244,6 @@ void FTServer::handleUserFlaggedEvent(struct kevent event) {
 	delete context;
 }
 
-// //  Read and process requested by client.
-// //  - Parameters connection: The connection to read from.
-// //  - Return(None)
-// void FTServer::read(Connection* connection) {
-// }
-
 //  Return appropriate server to process client connection.
 //  - Parameters
 //      clientConnection: The connection for client.
@@ -257,11 +251,14 @@ void FTServer::handleUserFlaggedEvent(struct kevent event) {
 VirtualServer& FTServer::getTargetVirtualServer(Connection& clientConnection) {
     //  TODO Implement real behavior. Change the return type from reference to pointer type.
     int cntVirtualServers = this->_vVirtualServers.size();
-    const std::string* tHostName = clientConnection.getRequest().getFirstHeaderFieldValueByName("Host");
-    for (int i = 0; i < cntVirtualServers; i++) {
-        if ((this->_vVirtualServers[i]->getPortNumber() == clientConnection.getPort()) &&
-            (this->_vVirtualServers[i]->getServerName() == *tHostName))
-            return *this->_vVirtualServers[i];
+    const std::string* tHostName = clientConnection.getRequest().getFirstHeaderFieldValueByName("host");
+    if (tHostName != NULL) {
+        std::string tServerName = tHostName->substr(0, tHostName->find_first_of(":"));
+        for (int i = 0; i < cntVirtualServers; i++) {
+            if ((this->_vVirtualServers[i]->getPortNumber() == clientConnection.getPort()) &&
+                (this->_vVirtualServers[i]->getServerName() == tServerName))
+                return *this->_vVirtualServers[i];
+        }
     }
     return *this->_defaultVirtualServers[static_cast<port_t>(clientConnection.getPort())];
 }

@@ -21,7 +21,7 @@ public:
     Location();
     bool isRouteMatch(const std::string& resourceURI) const;
     bool isRequestMethodAllowed(HTTP::RequestMethod requestMethod) const;
-    void getRepresentationPath(const std::string& resourceURI, std::string& representationPath) const;
+    void updateRepresentationPath(const std::string& resourceURI, std::string& representationPath) const;
 
     std::string getRoute() { return this->_route; };
     std::string getRoot() const { return this->_root; };
@@ -29,6 +29,7 @@ public:
     bool getAutoIndex() const { return this->_autoindex; };
     char getAllowedHTTPMethod() { return this->_allowedHTTPMethod; };
     std::vector<std::string> getCGIExtention() { return this->_cgiExtension; }
+    int getClientMaxBodySize() const;
 
     void setRoute(std::string route) { this->_route = route; };
     void setRoot(std::string root) { this->_root = root; };
@@ -37,16 +38,17 @@ public:
     };
     void setAutoIndex(bool isAutoindex) { this->_autoindex = isAutoindex; };
     void setAllowedHTTPMethod(std::vector<std::string> allowedMethod) {
-        if (allowedMethod.size() == 0)
-            this->_allowedHTTPMethod = 7;
+        char beAllowed = '0';
         for (std::vector<std::string>::const_iterator itr = allowedMethod.begin(); itr != allowedMethod.end(); itr++) {
             if (*itr == "GET")
-                this->_allowedHTTPMethod |= HTTP::RM_GET;
+                beAllowed |= HTTP::RM_GET;
             else if (*itr == "POST")
-                this->_allowedHTTPMethod |= HTTP::RM_POST; 
+                beAllowed |= HTTP::RM_POST; 
             else if (*itr == "DELETE")
-                this->_allowedHTTPMethod |= HTTP::RM_DELETE;
+                beAllowed |= HTTP::RM_DELETE;
         }
+        if (beAllowed)
+            this->_allowedHTTPMethod = beAllowed;
     };
     void setCGIExtention(std::vector<std::string> cgiExt) { this->_cgiExtension = cgiExt; }
     void setOtherDirective(std::string directiveName, std::vector<std::string> directiveValue) { 
