@@ -87,7 +87,7 @@ public:
     void setServerName(std::string serverName) { this->_name = serverName; }
     void setClientMaxBodySize(std::size_t clientMaxBodySize) { this->_clientMaxBodySize = clientMaxBodySize; };
     void setOtherDirective(std::string directiveName, std::vector<std::string> directiveValue) { 
-        _others.insert(make_pair(directiveName, directiveValue[0])); // TODO multi-value
+        this->_others.insert(make_pair(directiveName, directiveValue)); // TODO multi-value
     };
     void appendLocation(Location* lc) { this->_location.push_back(lc); };
     VirtualServer::ReturnCode processRequest(Connection& clientConnection);
@@ -95,6 +95,7 @@ public:
     std::string makeHeaderField(unsigned short fieldName);
     std::string makeDateHeaderField();
     // std::string makeAllowHeaderField();
+    std::string makeContentLocationHeaderField();
 
 private:
     port_t _portNumber;
@@ -102,7 +103,7 @@ private:
     std::size_t _clientMaxBodySize;
     std::vector<Location*> _location;
 
-    std::map<std::string, std::string> _others;
+    std::map<std::string, std::vector<std::string> > _others;
 
     const Location* getMatchingLocation(const Request& request);
 
@@ -113,6 +114,7 @@ private:
     void setStatusLine(Connection& clientConnection, HTTP::Status::Index index);
 
     int set400Response(Connection& clientConnection);
+    int set301Response(Connection& clientConnection);
     int set404Response(Connection& clientConnection);
     int set405Response(Connection& clientConnection, const Location* locations);
     int set411Response(Connection& clientConnection);

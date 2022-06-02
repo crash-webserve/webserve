@@ -108,15 +108,16 @@ int VirtualServer::processGET(Connection& clientConnection) {
     struct stat buf;
     std::string targetRepresentationURI;
 
+    if (this->_others.find("return") != this->_others.end())
+        return this->set301Response(clientConnection);
+
     const Location* locationPointer = this->getMatchingLocation(request);
     if (locationPointer == NULL)
         return this->set404Response(clientConnection);
-
     const Location& location = *locationPointer;
 
     if (!location.isRequestMethodAllowed(request.getMethod()))
         return this->set405Response(clientConnection, &location);
-
     location.updateRepresentationPath(targetResourceURI, targetRepresentationURI);
     if (stat(targetRepresentationURI.c_str(), &buf) == 0
             && (buf.st_mode & S_IFREG) != 0) {
@@ -318,6 +319,46 @@ int VirtualServer::set400Response(Connection& clientConnection) {
 
     return 0;
 }
+int VirtualServer::set301Response(Connection& clientConnection) {
+    struct stat buf;
+    const std::string REDIRECT_PATH = "/Users/mike2ox/Project/webserve/redirect.html";
+    
+    clientConnection.clearResponseMessage();
+    this->setStatusLine(clientConnection, Status::I_301);
+    stat(REDIRECT_PATH.c_str(), &buf);
+    clientConnection.appendResponseMessage("Connection: keep-alive\r\n");
+    clientConnection.appendResponseMessage("Content-Length: ");
+    std::ostringstream oss;
+    oss << buf.st_size;
+    clientConnection.appendResponseMessage(oss.str().c_str());
+    clientConnection.appendResponseMessage("\r\n");
+    clientConnection.appendResponseMessage("Content-Type: ");
+    std::string type;
+    updateContentType(REDIRECT_PATH, type);
+    clientConnection.appendResponseMessage(type);
+    clientConnection.appendResponseMessage("\r\n");
+    clientConnection.appendResponseMessage("Date: ");
+    clientConnection.appendResponseMessage(this->makeHeaderField(HTTP::DATE));
+    clientConnection.appendResponseMessage("\r\n");
+    // location
+    clientConnection.appendResponseMessage("Location: ");
+    clientConnection.appendResponseMessage("http://localhost:8080/");
+    clientConnection.appendResponseMessage("\r\n");
+    clientConnection.appendResponseMessage("Server: crash-webserve\r\n\r\n");
+
+    std::ifstream redirection(REDIRECT_PATH, std::ios_base::binary | std::ios_base::ate);
+    if (!redirection.is_open())
+        return -1;
+
+    std::ifstream::pos_type size = redirection.tellg();
+    std::string str(size, '\0');
+    redirection.seekg(0);
+    if (redirection.read(&str[0], size))
+        clientConnection.appendResponseMessage(str.c_str());
+
+    redirection.close();
+    return 0;
+}
 
 //  set response message with 404 status.
 //  - Parameters clientConnection: The client connection.
@@ -491,6 +532,8 @@ std::string VirtualServer::makeHeaderField(unsigned short fieldName) {
         return makeDateHeaderField();
     // case HTTP::ALLOW:
     //     return makeAllowHeaderField();
+    case HTTP::CONTENT_LOCATION:
+        return makeContentLocationHeaderField();
     }
     return ""; // TODO delete
 }
@@ -511,6 +554,19 @@ std::string VirtualServer::makeDateHeaderField() {
 // std::string Connection::makeAllowHeaderField() {
     
 // }
+
+// Find the exact file that fits the type
+//  - Parameters(None)
+//  - Return
+//      Current time based on GMT(std::string)
+std::string VirtualServer::makeContentLocationHeaderField() {
+    // 해당 파일의 경로를 갖고오는 함수
+    // content-type(mime)을 기준으로 찾아주는거 같음
+    // 만약 해당 uri가 파일이다 -> 그대로 출력
+    // 파일인지 모른다 -> accept language랑 accept encoding을 기준으로 해당 경로의 파일들을 다 탐색
+    std::string t;
+    return t;
+}
 
 //  set 'type' of 'name'
 //  - Parameters

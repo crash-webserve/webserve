@@ -52,7 +52,7 @@ public:
     };
     void setCGIExtention(std::vector<std::string> cgiExt) { this->_cgiExtension = cgiExt; }
     void setOtherDirective(std::string directiveName, std::vector<std::string> directiveValue) { 
-        _others.insert(make_pair(directiveName, directiveValue[0])); // TODO multi-value
+        _others.insert(make_pair(directiveName, directiveValue));
     };
 
 private:
@@ -63,7 +63,7 @@ private:
     char _allowedHTTPMethod;
     std::vector<std::string> _cgiExtension;
 
-    std::map<std::string, std::string> _others;
+    std::map<std::string, std::vector<std::string> > _others;
 };
 
 //  Return whether the resource path is match to this->_route.

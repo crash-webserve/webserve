@@ -24,9 +24,9 @@ void Location::updateRepresentationPath(const std::string& resourceURI, std::str
 //  - Parameters(None)
 //  - Return: client_max_body_size value in int.
 int Location::getClientMaxBodySize() const {
-    const std::map<std::string, std::string>::const_iterator iter = this->_others.find("client_max_body_size");
+    const std::map<std::string, std::vector<std::string> >::const_iterator iter = this->_others.find("client_max_body_size");
     if (iter != this->_others.end()) {
-        std::istringstream iss(iter->second);
+        std::istringstream iss(iter->second[0]);
         int maxBodySize;
         iss >> maxBodySize;
         if (!iss)
