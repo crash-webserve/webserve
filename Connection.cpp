@@ -13,6 +13,7 @@ Connection::Connection(port_t port, EventHandler& evHandler)
     this->newSocket();
     this->bindSocket();
     this->listenSocket();
+    Log::verbose("New Server Connection: socket[%d] port[%d]", _ident, _hostPort);
 }
 
 // Constructor of Connection class
@@ -30,6 +31,7 @@ Connection::Connection(int ident, std::string addr, port_t port, EventHandler& e
 , _readEventTriggered(-1)
 , _writeEventTriggered(-1)
 , _closed(false) {
+    Log::verbose("New Client Connection: socket[%d]", _ident);
 }
 
 // Destructor of the Socket class
@@ -56,7 +58,7 @@ Connection* Connection::acceptClient() {
     }
     addr = inet_ntoa(remoteaddr.sin_addr);
     port = ntohs(remoteaddr.sin_port);
-    Log::verbose("Connected from [%s:%d]", addr.c_str(), port);
+    Log::verbose("Connected from client[%s:%d]", addr.c_str(), port);
     if (fcntl(clientfd, F_SETFL, O_NONBLOCK) < 0)
         throw std::runtime_error("fcntl Failed");
     return new Connection(clientfd, addr, this->_hostPort, _eventHandler);
@@ -112,58 +114,6 @@ EventContext::EventResult Connection::transmit() {
 	return EventContext::ER_Continue;
 }
 
-// // Add new event on Kqueue
-// //  - Parameters
-// //      kqueue: FD number of Kqueue
-// //      filter: filter value for Kevent
-// //      udata: user data (optional)
-// //  - Return(none)
-// void Connection::addKevent(int kqueue, int filter, void* udata) {
-//     struct kevent   ev;
-
-//     EV_SET(&ev, this->_ident, filter, EV_ADD | EV_ENABLE, 0, 0, udata);
-//     if (kevent(kqueue, &ev, 1, 0, 0, 0) < 0)
-//         throw std::runtime_error("kevent adding Failed.");
-//     if (filter == EVFILT_READ) {
-//         this->_readEventTriggered = kqueue;
-//     } else if (filter == EVFILT_WRITE) {
-//         this->_writeEventTriggered = kqueue;
-//     }
-// }
-
-// // Add new Oneshot event on Kqueue (triggered just for 1 time)
-// //  - Parameters
-// //      kqueue: FD number of Kqueue
-// //      udata: user data (optional)
-// //  - Return(none)
-// void Connection::addKeventOneshot(int kqueue, void* udata) {
-//     struct kevent   ev;
-
-//     Log::verbose("Adding oneshot kevent...");
-//     EV_SET(&ev, this->_ident, EVFILT_USER, EV_ADD | EV_ONESHOT, NOTE_TRIGGER, 0, udata);
-//     if (kevent(kqueue, &ev, 1, 0, 0, 0) < 0)
-//         throw std::runtime_error("kevent (Oneshot) adding Failed.");
-// }
-
-// // Remove existing event on Kqueue
-// //  - Parameters
-// //      kqueue: FD number of Kqueue
-// //      filter: filter value for Kevent to remove
-// //      udata: user data (optional)
-// //  - Return(none)
-// void Connection::removeKevent(int kqueue, int filter, void* udata) {
-//     struct kevent   ev;
-
-//     EV_SET(&ev, this->_ident, filter, EV_DELETE, 0, 0, udata);
-//     if (kevent(kqueue, &ev, 1, 0, 0, 0) < 0)
-//         throw std::runtime_error("kevent deletion Failed.");
-//     if (filter == EVFILT_READ) {
-//         this->_readEventTriggered = -1;
-//     } else if (filter == EVFILT_WRITE) {
-//         this->_writeEventTriggered = -1;
-//     }
-// }
-
 // Clean-up process to destroy the Socket instance.
 // mark close attribute, and remove all kevents enrolled.
 //  - Return(none)
@@ -186,11 +136,11 @@ void Connection::newSocket() {
     if (0 > newConnection) {
         throw;
     }
-    Log::verbose("New Server Connection ( %d )", newConnection);
+    // Log::verbose("New Server Connection ( %d )", newConnection);
     if (0 > setsockopt(newConnection, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int))) {
         throw;
     }
-    Log::verbose("Connection ( %d ) has been setted to Reusable.", newConnection);
+    // Log::verbose("Connection ( %d ) has been setted to Reusable.", newConnection);
     this->_ident = newConnection;
 }
 
@@ -201,7 +151,7 @@ static void setAddrStruct(int port, sockaddr_in& addr_in) {
     addr_in.sin_family = PF_INET;
     addr_in.sin_port = htons(port);
     addr_in.sin_addr.s_addr = INADDR_ANY;
-    Log::verbose("Connectionadd struct has been setted");
+    // Log::verbose("Connectionadd struct has been setted");
 }
 
 // Bind socket to the designated port.
@@ -214,7 +164,7 @@ void Connection::bindSocket() {
     if (0 > bind(this->_ident, addr, sizeof(*addr))) {
         throw; // TODO
     }
-    Log::verbose("Connection ( %d ) bind succeed.", socket);
+    // Log::verbose("Connection ( %d ) bind succeed.", this->_ident);
 }
 
 // Listen to the socket for incoming messages.
@@ -223,7 +173,7 @@ void Connection::listenSocket() {
     if (0 > listen(_ident, 10)) {
         throw;
     }
-    Log::verbose("Listening from Connection ( %d ), Port ( %d ).", _ident);
+    // Log::verbose("Listening from Connection ( %d ), Port ( %d ).", this->_ident, this->_hostPort);
 }
 
 EventContext::EventResult Connection::passParsedRequest() {

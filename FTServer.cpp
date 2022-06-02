@@ -87,7 +87,6 @@ void FTServer::initParseConfig(std::string filePath) {
 void FTServer::init() {
     if (_eventHandler.getKqueue() < 0)
         throw std::runtime_error("Kqueue Initiation Failed.");
-    Log::verbose("kqueue generated: ( %d )", _eventHandler.getKqueue());
 
     this->initializeVirtualServers();
 
@@ -183,7 +182,6 @@ void FTServer::initializeConnection(std::set<port_t>& ports, int size) {
         } catch(std::exception& exep) {
             Log::verbose(exep.what());
         }
-        Log::verbose("Connection Generated: [%d]", (*itr));
     }
 }
 
@@ -270,8 +268,8 @@ void FTServer::run() {
     struct kevent events[_eventHandler.getMaxEvent()];
     int numbers = 0;
 
-    while (_alive == true)
-    {
+    while (_alive == true) {
+    try {
         numbers = _eventHandler.checkEvent(events);
         if (numbers < 0) {
             Log::verbose("VirtualServer::run kevent error [%d]", errno);
@@ -281,6 +279,10 @@ void FTServer::run() {
             this->handleUserFlaggedEvent(events[i]);
             this->runEachEvent(events[i]);
         }
+    }
+    catch (const std::runtime_error& excep) {
+        Log::warning("runtime error: %s", excep.what());
+    }
     }
 }
 
@@ -331,7 +333,7 @@ void FTServer::runEachEvent(struct kevent event) {
 	case EventContext::ER_Continue:
 		break ;
 	case EventContext::ER_NA:
-		Log::debug("EventContext is not applicalble. (%d)", context->getIdent());
+		Log::debug("EventContext is not applicalble. (%d):", context->getIdent(), context->getCallerType());
 	case EventContext::ER_Remove:
 		_eventHandler.removeEvent(filter, context);
 	}

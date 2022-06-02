@@ -11,6 +11,12 @@ EventHandler::~EventHandler() {
 	close(_kqueue);
 }
 
+// Add new event on Kqueue
+//  - Parameters
+//      kqueue: FD number of Kqueue
+//      filter: filter value for Kevent
+//      udata: user data (optional)
+//  - Return(none)
 void EventHandler::addEvent(int filter, EventContext* context) {
 	struct kevent ev;
 
@@ -19,6 +25,12 @@ void EventHandler::addEvent(int filter, EventContext* context) {
         throw std::runtime_error("AddEvent Failed.");
 }
 
+// Remove existing event on Kqueue
+//  - Parameters
+//      kqueue: FD number of Kqueue
+//      filter: filter value for Kevent to remove
+//      udata: user data (optional)
+//  - Return(none)
 void EventHandler::removeEvent(int filter, EventContext* context) {
 	struct kevent ev;
 
@@ -28,6 +40,10 @@ void EventHandler::removeEvent(int filter, EventContext* context) {
 	delete context;
 }
 
+// Add custom event on Kqueue (triggered just for 1 time)
+//  - Parameters
+//      context: EventContext for event
+//  - Return(none)
 void EventHandler::addUserEvent(EventContext* context) {
 	struct kevent ev;
 
