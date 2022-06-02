@@ -208,6 +208,20 @@ void FTServer::acceptConnection(int ident) {
     return this->acceptConnection(_mConnection[ident]);
 }
 
+void FTServer::callVirtualServerMethod(EventContext* context) {
+    VirtualServer& matchingServer = getTargetVirtualServer(*_mConnection[context->getIdent()]);
+    Connection* connection = (Connection*)context->getData();
+    VirtualServer::ReturnCode result;
+
+    result = matchingServer.processRequest(*connection);
+    if (result != VirtualServer::RC_SUCCESS)
+        return ;
+    _eventHandler.addEvent(
+		EVFILT_WRITE,
+		new EventContext(context->getIdent(), EventContext::EV_Response, connection)
+    );
+}
+
 // Close the certain socket and destroy the instance.
 //  - Parameter
 //      ident: socket FD number to kill.
@@ -219,7 +233,7 @@ void FTServer::handleUserFlaggedEvent(struct kevent event) {
         return;
 	switch (context->getCallerType()) {
 	case EventContext::EV_SetVirtualServer:
-		*(VirtualServer**)context->getData() = &getTargetVirtualServer(*_mConnection[context->getIdent()]);
+        this->callVirtualServerMethod(context);
 		break;
 	case EventContext::EV_DisposeConn:
 		delete this->_mConnection[event.ident];
@@ -228,14 +242,13 @@ void FTServer::handleUserFlaggedEvent(struct kevent event) {
 		;
 	}
 	delete context;
-
 }
 
-//  Read and process requested by client.
-//  - Parameters connection: The connection to read from.
-//  - Return(None)
-void FTServer::read(Connection* connection) {
-}
+// //  Read and process requested by client.
+// //  - Parameters connection: The connection to read from.
+// //  - Return(None)
+// void FTServer::read(Connection* connection) {
+// }
 
 //  Return appropriate server to process client connection.
 //  - Parameters
@@ -274,6 +287,12 @@ void FTServer::run() {
     }
 }
 
+// Defines how to handle certain event, depands on EventContext
+//  - Parameters
+//      context: Eventcontext for triggered event
+//      filter: filter for triggered event
+//  - Returns
+//      Result flag of handled event
 EventContext::EventResult FTServer::driveThisEvent(EventContext* context, int filter) {
 	Connection* connection = (Connection*)context->getData();
 
@@ -295,11 +314,14 @@ EventContext::EventResult FTServer::driveThisEvent(EventContext* context, int fi
 		;
 	default:
 		;
-	}
+    }
 	return EventContext::ER_NA;
-
 }
 
+// Process a single event
+//  - Parameters
+//      event: event to process
+//  - Return ( None )
 void FTServer::runEachEvent(struct kevent event) {
     EventContext* context = (EventContext*)event.udata;
 	int filter = event.filter;

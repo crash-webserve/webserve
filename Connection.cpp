@@ -251,19 +251,8 @@ void Connection::listenSocket() {
 }
 
 EventContext::EventResult Connection::passParsedRequest() {
-	VirtualServer* targetVirtualServer = NULL;
-
 	_eventHandler.addUserEvent(
-		new EventContext(this->_ident, EventContext::EV_SetVirtualServer, &targetVirtualServer)
-	);
-
-	while (targetVirtualServer == NULL) ;
-	if (targetVirtualServer->processRequest(*this) != VirtualServer::RC_SUCCESS)
-		return EventContext::ER_Done; // TODO: 작업 실패 시 리턴 달라야 할 필요??
-
-	_eventHandler.addEvent(
-		EVFILT_WRITE,
-		new EventContext(this->_ident, EventContext::EV_Response, this)
+		new EventContext(this->_ident, EventContext::EV_SetVirtualServer, this)
 	);
 	return EventContext::ER_Done;
 }

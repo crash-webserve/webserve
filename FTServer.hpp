@@ -71,13 +71,10 @@ private:
     VirtualServer* makeVirtualServer(VirtualServerConfig* serverConf);
     void acceptConnection(Connection* connection);
     void handleUserFlaggedEvent(struct kevent event);
-    void read(Connection* connection);
-    void write(Connection* connection);
 
     EventContext::EventResult driveThisEvent(EventContext* context, int filter);
     void runEachEvent(struct kevent event);
-
-    VirtualServer* selectVirtualServer(/* Request Object */);
+    void callVirtualServerMethod(EventContext* context);
 };
 
 #endif  // FTSERVER_HPP_
