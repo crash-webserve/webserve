@@ -109,8 +109,7 @@ int VirtualServer::processGET(Connection& clientConnection) {
     std::string targetRepresentationURI;
 
     if (this->_others.find("return") != this->_others.end())
-        return this->set301Response(clientConnection);
-
+        return this->set301Response(clientConnection, this->_others);
     const Location* locationPointer = this->getMatchingLocation(request);
     if (locationPointer == NULL)
         return this->set404Response(clientConnection);
@@ -127,7 +126,7 @@ int VirtualServer::processGET(Connection& clientConnection) {
 
         clientConnection.appendResponseMessage("Server: crash-webserve\r\n");
         clientConnection.appendResponseMessage("Date: ");
-        clientConnection.appendResponseMessage(this->makeHeaderField(HTTP::DATE));
+        clientConnection.appendResponseMessage(this->makeDateHeaderField());
         clientConnection.appendResponseMessage("\r\n");
         clientConnection.appendResponseMessage("Content-Type: ");
         std::string type;
@@ -170,7 +169,7 @@ int VirtualServer::processGET(Connection& clientConnection) {
 
         clientConnection.appendResponseMessage("Server: crash-webserve\r\n");
         clientConnection.appendResponseMessage("Date: ");
-        clientConnection.appendResponseMessage(this->makeHeaderField(HTTP::DATE));
+        clientConnection.appendResponseMessage(this->makeDateHeaderField());
         clientConnection.appendResponseMessage("\r\n");
         clientConnection.appendResponseMessage("Content-Type: ");
         std::string type;
@@ -248,7 +247,7 @@ int VirtualServer::processPOST(Connection& clientConnection) {
 
     // TODO 적절한 헤더 필드 추가하기(content-length)
     clientConnection.appendResponseMessage("Date: ");
-    clientConnection.appendResponseMessage(this->makeHeaderField(HTTP::DATE));
+    clientConnection.appendResponseMessage(this->makeDateHeaderField());
     clientConnection.appendResponseMessage("\r\n\r\n");
 
     // TODO 적절한 바디 생성하기
@@ -284,7 +283,7 @@ int VirtualServer::processDELETE(Connection& clientConnection) {
 
         // TODO 적절한 헤더 필드 추가하기(content-length)
         clientConnection.appendResponseMessage("Date: ");
-        clientConnection.appendResponseMessage(this->makeHeaderField(HTTP::DATE));
+        clientConnection.appendResponseMessage(this->makeDateHeaderField());
         clientConnection.appendResponseMessage("\r\n\r\n");
 
         // TODO 적절한 바디 설정하기
@@ -316,7 +315,7 @@ int VirtualServer::set400Response(Connection& clientConnection) {
 
     // TODO implement
     clientConnection.appendResponseMessage("Date: ");
-    clientConnection.appendResponseMessage(this->makeHeaderField(HTTP::DATE));
+    clientConnection.appendResponseMessage(this->makeDateHeaderField());
     clientConnection.appendResponseMessage("\r\n\r\n");
 
     return 0;
@@ -340,7 +339,7 @@ int VirtualServer::set301Response(Connection& clientConnection, const std::map<s
     clientConnection.appendResponseMessage(type);
     clientConnection.appendResponseMessage("\r\n");
     clientConnection.appendResponseMessage("Date: ");
-    clientConnection.appendResponseMessage(this->makeHeaderField(HTTP::DATE));
+    clientConnection.appendResponseMessage(this->makeDateHeaderField());
     clientConnection.appendResponseMessage("\r\n");
     // location
     clientConnection.appendResponseMessage("Location: ");
@@ -371,7 +370,7 @@ int VirtualServer::set404Response(Connection& clientConnection) {
 
     // TODO implement
     clientConnection.appendResponseMessage("Date: ");
-    clientConnection.appendResponseMessage(this->makeHeaderField(HTTP::DATE));
+    clientConnection.appendResponseMessage(this->makeDateHeaderField());
     clientConnection.appendResponseMessage("\r\n\r\n");
 
     return 0;
@@ -386,7 +385,7 @@ int VirtualServer::set405Response(Connection& clientConnection, const Location* 
 
     // TODO implement
     clientConnection.appendResponseMessage("Date: ");
-    clientConnection.appendResponseMessage(this->makeHeaderField(HTTP::DATE));
+    clientConnection.appendResponseMessage(this->makeDateHeaderField());
     clientConnection.appendResponseMessage("\r\n");
 
     if (location != NULL) {
@@ -417,7 +416,7 @@ int VirtualServer::set411Response(Connection& clientConnection) {
 
     // TODO implement
     clientConnection.appendResponseMessage("Date: ");
-    clientConnection.appendResponseMessage(this->makeHeaderField(HTTP::DATE));
+    clientConnection.appendResponseMessage(this->makeDateHeaderField());
     clientConnection.appendResponseMessage("\r\n\r\n");
 
     return 0;
@@ -433,7 +432,7 @@ int VirtualServer::set413Response(Connection& clientConnection) {
 
     // TODO implement
     clientConnection.appendResponseMessage("Date: ");
-    clientConnection.appendResponseMessage(this->makeHeaderField(HTTP::DATE));
+    clientConnection.appendResponseMessage(this->makeDateHeaderField());
     clientConnection.appendResponseMessage("\r\n\r\n");
 
     return 0;
@@ -448,7 +447,7 @@ int VirtualServer::set500Response(Connection& clientConnection) {
 
     // TODO append header section and body
     clientConnection.appendResponseMessage("Date: ");
-    clientConnection.appendResponseMessage(this->makeHeaderField(HTTP::DATE));
+    clientConnection.appendResponseMessage(this->makeDateHeaderField());
     clientConnection.appendResponseMessage("\r\n\r\n");
 
     return 0;
@@ -487,7 +486,7 @@ int VirtualServer::setListResponse(Connection& clientConnection, const std::stri
     clientConnection.appendResponseMessage("Connection: keep-alive\r\n");
     clientConnection.appendResponseMessage("Content-Type: text/html\r\n");
     clientConnection.appendResponseMessage("Date: ");
-    clientConnection.appendResponseMessage(this->makeHeaderField(HTTP::DATE));
+    clientConnection.appendResponseMessage(this->makeDateHeaderField());
     clientConnection.appendResponseMessage("\r\n");
     clientConnection.appendResponseMessage("Server: crash-webserve\r\n");
     clientConnection.appendResponseMessage("\r\n");
@@ -526,22 +525,6 @@ int VirtualServer::setListResponse(Connection& clientConnection, const std::stri
 
     return 0;
 }
-
-std::string VirtualServer::makeHeaderField(unsigned short fieldName) {
-    switch (fieldName)
-    {
-    case HTTP::DATE:
-        return makeDateHeaderField();
-    // case HTTP::ALLOW:
-    //     return makeAllowHeaderField();
-    // case HTTP::CONTENT_LOCATION:
-    //     return makeContentLocationHeaderField();
-    // case HTTP::LOCATION:
-    //     return makeLocationHeaderField();
-    }
-    return ""; // TODO delete
-}
-
 // Find the current time based on GMT
 //  - Parameters(None)
 //  - Return

@@ -92,7 +92,6 @@ public:
     void appendLocation(Location* lc) { this->_location.push_back(lc); };
     VirtualServer::ReturnCode processRequest(Connection& clientConnection);
 
-    std::string makeHeaderField(unsigned short fieldName);
     std::string makeDateHeaderField();
     // std::string makeAllowHeaderField();
     // std::string makeContentLocationHeaderField();

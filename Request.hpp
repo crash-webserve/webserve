@@ -20,25 +20,6 @@ enum RequestMethod {
     RM_DELETE = 0x1 << 2,
 };
 
-enum HeaderFieldName{
-    ALLOW,
-    AUTHORIZATION,
-    WWW_AUTHENTICATE,
-    CONTENT_LANGUAGE,
-    CONTENT_LENGTH,
-    CONTENT_TYPE,
-    CONTENT_LOCATION,
-    LOCATION,
-    DATE,
-    HOST,
-    LAST_MODIFIED,
-    REFERER,
-    RETRY_AFTER,
-    SERVER,
-    TRANSFER_ENCODING,
-    USER_AGENT,
-};
-
 }   // namespace HTTP
 
 //  ReturnCaseOfRecv indicates the status of recv() call.
