@@ -28,7 +28,9 @@ public:
     std::string getIndex() const { return this->_index; };
     bool getAutoIndex() const { return this->_autoindex; };
     char getAllowedHTTPMethod() { return this->_allowedHTTPMethod; };
-    std::vector<std::string> getCGIExtention() { return this->_cgiExtension; }
+    std::vector<std::string> getCGIExtention() { return this->_cgiExtension; };
+    std::map<std::string, std::vector<std::string> > const &getOtherDirective() const { return this->_others; }; 
+
     int getClientMaxBodySize() const;
 
     void setRoute(std::string route) { this->_route = route; };
