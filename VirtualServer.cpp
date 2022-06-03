@@ -322,7 +322,6 @@ int VirtualServer::set400Response(Connection& clientConnection) {
 }
 int VirtualServer::set301Response(Connection& clientConnection, const std::map<std::string, std::vector<std::string> >& locOther) {
     struct stat buf;
-    const std::string REDIRECT_PATH = "/Users/mike2ox/Project/webserve/redirect.html";
     
     clientConnection.clearResponseMessage();
     this->setStatusLine(clientConnection, Status::I_301);
