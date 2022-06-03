@@ -320,6 +320,7 @@ int VirtualServer::set400Response(Connection& clientConnection) {
 
     return 0;
 }
+
 int VirtualServer::set301Response(Connection& clientConnection, const std::map<std::string, std::vector<std::string> >& locOther) {
     struct stat buf;
     
@@ -540,6 +541,7 @@ std::string VirtualServer::makeDateHeaderField() {
 // std::string Connection::makeAllowHeaderField() {
     
 // }
+
 
 // Make Content-Location Field (path of appropriate data)
 //  - Parameters(None)
