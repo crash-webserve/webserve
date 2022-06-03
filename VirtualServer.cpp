@@ -108,6 +108,9 @@ int VirtualServer::processGET(Connection& clientConnection) {
     struct stat buf;
     std::string targetRepresentationURI;
 
+    if (this->_others.find("return") != this->_others.end())
+        return this->set301Response(clientConnection);
+
     const Location* locationPointer = this->getMatchingLocation(request);
     if (locationPointer == NULL)
         return this->set404Response(clientConnection);
