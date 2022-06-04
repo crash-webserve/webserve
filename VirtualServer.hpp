@@ -37,7 +37,6 @@ struct Status {
         I_201,
         I_301,
         I_400,
-        I_403,
         I_404,
         I_405,
         I_411,
@@ -98,6 +97,8 @@ public:
         this->_others.insert(make_pair(directiveName, directiveValue)); // TODO multi-value
     };
     void appendLocation(Location* lc) { this->_location.push_back(lc); };
+    int updateErrorPage(const std::string& statusCode, const std::string& filePath);
+
     VirtualServer::ReturnCode processRequest(Connection& clientConnection);
 
     std::string makeDateHeaderField();
@@ -113,6 +114,8 @@ private:
 
     std::map<std::string, std::vector<std::string> > _others;
 
+    std::map<std::string, std::string> _errorPage;
+
     const Location* getMatchingLocation(const Request& request);
 
     int processGET(Connection& clientConnection);
@@ -120,9 +123,10 @@ private:
     int processDELETE(Connection& clientConnection);
 
     void setStatusLine(Connection& clientConnection, HTTP::Status::Index index);
+    void updateBodyString(HTTP::Status::Index index, const char* description, std::string& bodystring) const;
 
-    int set400Response(Connection& clientConnection);
     int set301Response(Connection& clientConnection, const std::map<std::string, std::vector<std::string> >& locOther);
+    int set400Response(Connection& clientConnection);
     int set404Response(Connection& clientConnection);
     int set405Response(Connection& clientConnection, const Location* locations);
     int set411Response(Connection& clientConnection);

@@ -129,6 +129,11 @@ VirtualServer*    FTServer::makeVirtualServer(VirtualServerConfig* virtualServer
             newVirtualServer->setClientMaxBodySize(cmbs);
             ss.clear();
         }
+        if (itr->first.compare("error_page") == 0) {
+            if (itr->second.size() != 2)
+                continue;
+            newVirtualServer->updateErrorPage(itr->second[0], itr->second[1]);
+        }
         else {
             for (size_t i = 0; i < itr->second.size(); i++)
                 newVirtualServer->setOtherDirective(itr->first, itr->second);
