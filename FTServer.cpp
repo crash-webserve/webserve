@@ -177,7 +177,9 @@ void FTServer::initializeConnection(std::set<port_t>& ports, int size) {
         try {
             _eventHandler.addEvent(
                 EVFILT_READ,
-                new EventContext(newConnection->getIdent(), EventContext::EV_Accept, this)
+                newConnection->getIdent(),
+                EventContext::EV_Accept,
+                this
             );
         } catch(std::exception& exep) {
             Log::verbose(exep.what());
@@ -195,7 +197,9 @@ void FTServer::acceptConnection(Connection* connection) {
     try {
         _eventHandler.addEvent(
             EVFILT_READ,
-            new EventContext(newConnection->getIdent(), EventContext::EV_Request, newConnection)
+            newConnection->getIdent(),
+            EventContext::EV_Request,
+            newConnection
         );
     } catch(std::exception& excep) {
         Log::verbose(excep.what());
@@ -216,7 +220,9 @@ void FTServer::callVirtualServerMethod(EventContext* context) {
         return ;
     _eventHandler.addEvent(
 		EVFILT_WRITE,
-		new EventContext(context->getIdent(), EventContext::EV_Response, connection)
+		context->getIdent(),
+        EventContext::EV_Response,
+        connection
     );
 }
 
@@ -310,7 +316,9 @@ EventContext::EventResult FTServer::driveThisEvent(EventContext* context, int fi
 			return EventContext::ER_NA;
 		return connection->transmit();
 	case EventContext::EV_CGIResponse:
-		;
+		if (filter != EVFILT_WRITE)
+            return EventContext::ER_NA;
+        return connection->handleCGIResponse(context->getIdent());
 	default:
 		;
     }
@@ -326,6 +334,9 @@ void FTServer::runEachEvent(struct kevent event) {
 	int filter = event.filter;
 	int eventResult;
 
+    if (filter == EVFILT_USER)
+        return ;
+
 	eventResult = this->driveThisEvent(context, filter);
 
 	switch (eventResult) {
@@ -333,7 +344,7 @@ void FTServer::runEachEvent(struct kevent event) {
 	case EventContext::ER_Continue:
 		break ;
 	case EventContext::ER_NA:
-		Log::debug("EventContext is not applicalble. (%d):", context->getIdent(), context->getCallerType());
+		Log::debug("EventContext is not applicalble. (%d): %s", context->getIdent(), context->getCallerTypeToString().c_str());
 	case EventContext::ER_Remove:
 		_eventHandler.removeEvent(filter, context);
 	}

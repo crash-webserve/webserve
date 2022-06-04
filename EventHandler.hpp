@@ -20,9 +20,9 @@ public:
 	const int getKqueue() { return _kqueue; };
 	const int getMaxEvent() { return _maxEvent; };
 
-	void addEvent(int filter, EventContext* context);
+	void addEvent(int filter, int fd, EventContext::EventType type, void* data);
 	void removeEvent(int filter, EventContext* context);
-	void addUserEvent(EventContext* context);
+	void addUserEvent(int fd, EventContext::EventType type, void* data);
 	int checkEvent(struct kevent* eventlist);
 
 private:

@@ -1,6 +1,7 @@
 #ifndef RESPONSE_HPP_
 #define RESPONSE_HPP_
 
+#include <sys/socket.h>
 #include <string>
 
 //  ReturnCaseOfSend indicates the status of send().
@@ -26,7 +27,9 @@ public:
 
     void clearMessage();
     void appendMessage(const std::string& message);
+
     ReturnCaseOfSend sendResponseMessage(int clientSocket);
+    void processCGIResponse();
 
 private:
     std::string _message;

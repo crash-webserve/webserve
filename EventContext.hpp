@@ -1,6 +1,8 @@
 #ifndef EVENTCONTEXT_HPP_
 #define EVENTCONTEXT_HPP_
 
+#include <string>
+
 class EventContext {
 public:
 	enum EventType {
@@ -22,6 +24,7 @@ public:
 
 	int getIdent() { return _eventIdent; };
 	EventType getCallerType() { return _callerType; };
+	std::string getCallerTypeToString();
 	void* getData() { return _data; };
 
 private:

@@ -84,16 +84,6 @@ EventContext::EventResult Connection::receive() {
 	return EventContext::ER_Continue;
 }
 
-// // The way how Connection class handles transmit event.
-// //  - Return(none)
-// void Connection::transmit() {
-//     int sendResult = 0;
-
-//     sendResult = send(this->_ident, _response.c_str(), _response.length(), 0);
-//     _response = _response.substr(sendResult, -1);
-//     if (sendResult == 0 || _response.length() == 0) {
-//         this->removeKevent(_writeEventTriggered, EVFILT_WRITE, 0);
-
 //  Send response message to client.
 //  - Parameters(None)
 //  - Return(None)
@@ -123,9 +113,35 @@ void Connection::dispose() {
     _closed = true;
     Log::verbose("Socket instance closing. [%d]", this->_ident);
 	_eventHandler.addUserEvent(
-		new EventContext(this->_ident, EventContext::EV_DisposeConn, NULL)
+		this->_ident,
+        EventContext::EV_DisposeConn,
+        NULL
 	);
 }
+
+EventContext::EventResult Connection::handleCGIResponse(int CGIPipeOut) {
+    char buffer[BUF_SIZE];
+    ssize_t result = read(CGIPipeOut, buffer, BUF_SIZE - 1);
+
+    switch (result) {
+    case 0:
+        this->_response.processCGIResponse();
+        this->_eventHandler.addEvent(
+            EVFILT_WRITE,
+            this->_ident,
+            EventContext::EV_Response,
+            this
+        );
+    case -1:
+        Log::debug("CGI pipe has been broken.");
+        return EventContext::ER_Remove;
+    default:
+        buffer[result] = '\0';
+        this->appendResponseMessage(buffer);
+        return EventContext::ER_Continue;
+    }
+}
+
 
 // Creates new Connection and set for the attribute.
 //  - Return(none)
@@ -178,7 +194,9 @@ void Connection::listenSocket() {
 
 EventContext::EventResult Connection::passParsedRequest() {
 	_eventHandler.addUserEvent(
-		new EventContext(this->_ident, EventContext::EV_SetVirtualServer, this)
+		this->_ident,
+        EventContext::EV_SetVirtualServer,
+        this
 	);
 	return EventContext::ER_Done;
 }

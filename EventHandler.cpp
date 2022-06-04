@@ -17,8 +17,9 @@ EventHandler::~EventHandler() {
 //      filter: filter value for Kevent
 //      udata: user data (optional)
 //  - Return(none)
-void EventHandler::addEvent(int filter, EventContext* context) {
+void EventHandler::addEvent(int filter, int fd, EventContext::EventType type, void* data) {
 	struct kevent ev;
+	EventContext* context = new EventContext(fd, type ,data);
 
     EV_SET(&ev, context->getIdent(), filter, EV_ADD | EV_ENABLE, 0, 0, context);
     if (kevent(_kqueue, &ev, 1, 0, 0, 0) < 0)
@@ -44,8 +45,9 @@ void EventHandler::removeEvent(int filter, EventContext* context) {
 //  - Parameters
 //      context: EventContext for event
 //  - Return(none)
-void EventHandler::addUserEvent(EventContext* context) {
+void EventHandler::addUserEvent(int fd, EventContext::EventType type, void* data) {
 	struct kevent ev;
+	EventContext* context = new EventContext(fd, type ,data);
 
     EV_SET(&ev, context->getIdent(), EVFILT_USER, EV_ADD | EV_ONESHOT, NOTE_TRIGGER, 0, context);
     if (kevent(_kqueue, &ev, 1, 0, 0, 0) < 0)

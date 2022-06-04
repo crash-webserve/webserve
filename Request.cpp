@@ -82,7 +82,7 @@ bool Request::isChunked() const {
 ssize_t Request::receiveMessage(int clientSocketFD) {
     char buf[BUF_SIZE];
 
-    ssize_t result = recv(clientSocketFD, buf, BUF_SIZE, 0);
+    ssize_t result = recv(clientSocketFD, buf, BUF_SIZE - 1, 0);
     if (result <= 0)
         return result;
     buf[result] = '\0';
