@@ -138,12 +138,9 @@ int VirtualServer::processGET(Connection& clientConnection) {
     location.updateRepresentationPath(targetResourceURI, targetRepresentationURI);
     if (stat(targetRepresentationURI.c_str(), &buf) == 0
             && (buf.st_mode & S_IFREG) != 0) {
-        this->setStatusLine(clientConnection, Status::I_200);
+        this->appendStatusLine(clientConnection, Status::I_200);
 
-        clientConnection.appendResponseMessage("Server: crash-webserve\r\n");
-        clientConnection.appendResponseMessage("Date: ");
-        clientConnection.appendResponseMessage(this->makeDateHeaderField());
-        clientConnection.appendResponseMessage("\r\n");
+        this->appendDefaultHeaderFields(clientConnection);
         clientConnection.appendResponseMessage("Content-Type: ");
         std::string type;
         updateContentType(targetRepresentationURI, type);
@@ -181,12 +178,9 @@ int VirtualServer::processGET(Connection& clientConnection) {
 
     if (stat(location.getIndex().c_str(), &buf) == 0
             && (buf.st_mode & S_IFREG) != 0) {
-        this->setStatusLine(clientConnection, Status::I_200);
+        this->appendStatusLine(clientConnection, Status::I_200);
 
-        clientConnection.appendResponseMessage("Server: crash-webserve\r\n");
-        clientConnection.appendResponseMessage("Date: ");
-        clientConnection.appendResponseMessage(this->makeDateHeaderField());
-        clientConnection.appendResponseMessage("\r\n");
+        this->appendDefaultHeaderFields(clientConnection);
         clientConnection.appendResponseMessage("Content-Type: ");
         std::string type;
         updateContentType(location.getIndex(), type);
@@ -259,22 +253,19 @@ int VirtualServer::processPOST(Connection& clientConnection) {
     out << requestBody;
     out.close();
 
-    this->setStatusLine(clientConnection, Status::I_201);
+    this->appendStatusLine(clientConnection, Status::I_201);
 
     std::string bodyString;
     this->updateBodyString(Status::I_201, "File created.", bodyString);
 
-    clientConnection.appendResponseMessage("Server: crash-webserve\r\n");
+    this->appendContentDefaultHeaderFields(clientConnection);
     clientConnection.appendResponseMessage("Content-Length: ");
     std::ostringstream oss;
     oss << bodyString.length();
     clientConnection.appendResponseMessage(oss.str());
     clientConnection.appendResponseMessage("\r\n");
-    clientConnection.appendResponseMessage("Content-Type: text/html\r\n");
     clientConnection.appendResponseMessage("Connection: keep-alive\r\n");
-    clientConnection.appendResponseMessage("Date: ");
-    clientConnection.appendResponseMessage(this->makeDateHeaderField());
-    clientConnection.appendResponseMessage("\r\n\r\n");
+    clientConnection.appendResponseMessage("\r\n");
     clientConnection.appendResponseMessage(bodyString);
 
     return 0;
@@ -304,22 +295,19 @@ int VirtualServer::processDELETE(Connection& clientConnection) {
         if (unlink(targetRepresentationURI.c_str()) == -1)
             return -1;
 
-        this->setStatusLine(clientConnection, Status::I_200);
+        this->appendStatusLine(clientConnection, Status::I_200);
 
         std::string bodyString;
         this->updateBodyString(Status::I_200, "File deleted.", bodyString);
 
-        clientConnection.appendResponseMessage("Server: crash-webserve\r\n");
+        this->appendContentDefaultHeaderFields(clientConnection);
         clientConnection.appendResponseMessage("Content-Length: ");
         std::ostringstream oss;
         oss << bodyString.length();
         clientConnection.appendResponseMessage(oss.str());
         clientConnection.appendResponseMessage("\r\n");
-        clientConnection.appendResponseMessage("Content-Type: text/html\r\n");
         clientConnection.appendResponseMessage("Connection: keep-alive\r\n");
-        clientConnection.appendResponseMessage("Date: ");
-        clientConnection.appendResponseMessage(this->makeDateHeaderField());
-        clientConnection.appendResponseMessage("\r\n\r\n");
+        clientConnection.appendResponseMessage("\r\n");
         clientConnection.appendResponseMessage(bodyString);
 
         return 0;
@@ -331,12 +319,26 @@ int VirtualServer::processDELETE(Connection& clientConnection) {
 //  Set status line to response of clientConnection.
 //  - Parameters clientConnection: The client connection.
 //  - Return(None)
-void VirtualServer::setStatusLine(Connection& clientConnection, Status::Index index) {
+void VirtualServer::appendStatusLine(Connection& clientConnection, Status::Index index) {
     clientConnection.appendResponseMessage("HTTP/1.1 ");
     clientConnection.appendResponseMessage(HTTP::getStatusCodeBy(index));
     clientConnection.appendResponseMessage(" ");
     clientConnection.appendResponseMessage(HTTP::getStatusReasonBy(index));
     clientConnection.appendResponseMessage("\r\n");
+}
+
+//  append default header fields.
+void VirtualServer::appendDefaultHeaderFields(Connection& clientConnection) {
+    clientConnection.appendResponseMessage("Server: crash-webserve\r\n");
+    clientConnection.appendResponseMessage("Date: ");
+    clientConnection.appendResponseMessage(this->makeDateHeaderField());
+    clientConnection.appendResponseMessage("\r\n");
+}
+
+//  append default header fields for error code.
+void VirtualServer::appendContentDefaultHeaderFields(Connection& clientConnection) {
+    this->appendDefaultHeaderFields(clientConnection);
+    clientConnection.appendResponseMessage("Content-Type: text/html\r\n");
 }
 
 void VirtualServer::updateBodyString(HTTP::Status::Index index, const char* description, std::string& bodyString) const {
@@ -352,8 +354,9 @@ int VirtualServer::set301Response(Connection& clientConnection, const std::map<s
     struct stat buf;
 
     clientConnection.clearResponseMessage();
-    this->setStatusLine(clientConnection, Status::I_301);
+    this->appendStatusLine(clientConnection, Status::I_301);
     stat(REDIRECT_PATH.c_str(), &buf);
+    this->appendDefaultHeaderFields(clientConnection);
     clientConnection.appendResponseMessage("Connection: keep-alive\r\n");
     clientConnection.appendResponseMessage("Content-Length: ");
     std::ostringstream oss;
@@ -365,14 +368,11 @@ int VirtualServer::set301Response(Connection& clientConnection, const std::map<s
     updateContentType(REDIRECT_PATH, type);
     clientConnection.appendResponseMessage(type);
     clientConnection.appendResponseMessage("\r\n");
-    clientConnection.appendResponseMessage("Date: ");
-    clientConnection.appendResponseMessage(this->makeDateHeaderField());
-    clientConnection.appendResponseMessage("\r\n");
     // location
     clientConnection.appendResponseMessage("Location: ");
     clientConnection.appendResponseMessage(this->makeLocationHeaderField(locOther));
     clientConnection.appendResponseMessage("\r\n");
-    clientConnection.appendResponseMessage("Server: crash-webserve\r\n\r\n");
+    clientConnection.appendResponseMessage("\r\n");
 
     std::ifstream redirection(REDIRECT_PATH, std::ios_base::binary | std::ios_base::ate);
     if (!redirection.is_open())
@@ -394,22 +394,19 @@ int VirtualServer::set301Response(Connection& clientConnection, const std::map<s
 //      otherwise, a value of -1 is returned.
 int VirtualServer::set400Response(Connection& clientConnection) {
     clientConnection.clearResponseMessage();
-    this->setStatusLine(clientConnection, Status::I_400);
+    this->appendStatusLine(clientConnection, Status::I_400);
 
     std::string bodyString;
     this->updateBodyString(Status::I_400, NULL, bodyString);
 
-    clientConnection.appendResponseMessage("Server: crash-webserve\r\n");
+    this->appendContentDefaultHeaderFields(clientConnection);
     clientConnection.appendResponseMessage("Content-Length: ");
     std::ostringstream oss;
     oss << bodyString.length();
     clientConnection.appendResponseMessage(oss.str());
     clientConnection.appendResponseMessage("\r\n");
-    clientConnection.appendResponseMessage("Content-Type: text/html\r\n");
     clientConnection.appendResponseMessage("Connection: keep-alive\r\n");
-    clientConnection.appendResponseMessage("Date: ");
-    clientConnection.appendResponseMessage(this->makeDateHeaderField());
-    clientConnection.appendResponseMessage("\r\n\r\n");
+    clientConnection.appendResponseMessage("\r\n");
     clientConnection.appendResponseMessage(bodyString);
 
     return 0;
@@ -420,22 +417,19 @@ int VirtualServer::set400Response(Connection& clientConnection) {
 //  - Return(None)
 int VirtualServer::set404Response(Connection& clientConnection) {
     clientConnection.clearResponseMessage();
-    this->setStatusLine(clientConnection, Status::I_404);
+    this->appendStatusLine(clientConnection, Status::I_404);
 
     std::string bodyString;
     this->updateBodyString(Status::I_404, NULL, bodyString);
 
-    clientConnection.appendResponseMessage("Server: crash-webserve\r\n");
+    this->appendContentDefaultHeaderFields(clientConnection);
     clientConnection.appendResponseMessage("Content-Length: ");
     std::ostringstream oss;
     oss << bodyString.length();
     clientConnection.appendResponseMessage(oss.str());
     clientConnection.appendResponseMessage("\r\n");
-    clientConnection.appendResponseMessage("Content-Type: text/html\r\n");
     clientConnection.appendResponseMessage("Connection: keep-alive\r\n");
-    clientConnection.appendResponseMessage("Date: ");
-    clientConnection.appendResponseMessage(this->makeDateHeaderField());
-    clientConnection.appendResponseMessage("\r\n\r\n");
+    clientConnection.appendResponseMessage("\r\n");
     clientConnection.appendResponseMessage(bodyString);
 
     return 0;
@@ -446,23 +440,19 @@ int VirtualServer::set404Response(Connection& clientConnection) {
 //  - Return(None)
 int VirtualServer::set405Response(Connection& clientConnection, const Location* location) {
     clientConnection.clearResponseMessage();
-    this->setStatusLine(clientConnection, Status::I_405);
+    this->appendStatusLine(clientConnection, Status::I_405);
 
 
     std::string bodyString;
     this->updateBodyString(Status::I_405, NULL, bodyString);
 
-    clientConnection.appendResponseMessage("Server: crash-webserve\r\n");
+    this->appendContentDefaultHeaderFields(clientConnection);
     clientConnection.appendResponseMessage("Content-Length: ");
     std::ostringstream oss;
     oss << bodyString.length();
     clientConnection.appendResponseMessage(oss.str());
     clientConnection.appendResponseMessage("\r\n");
-    clientConnection.appendResponseMessage("Content-Type: text/html\r\n");
     clientConnection.appendResponseMessage("Connection: keep-alive\r\n");
-    clientConnection.appendResponseMessage("Date: ");
-    clientConnection.appendResponseMessage(this->makeDateHeaderField());
-    clientConnection.appendResponseMessage("\r\n");
 
     if (location != NULL) {
         clientConnection.appendResponseMessage("Allow: ");
@@ -490,22 +480,19 @@ int VirtualServer::set405Response(Connection& clientConnection, const Location* 
 //      otherwise, a value of -1 is returned.
 int VirtualServer::set411Response(Connection& clientConnection) {
     clientConnection.clearResponseMessage();
-    this->setStatusLine(clientConnection, Status::I_411);
+    this->appendStatusLine(clientConnection, Status::I_411);
 
     std::string bodyString;
-    this->updateBodyString(Status::I_411, "File created.", bodyString);
+    this->updateBodyString(Status::I_411, NULL, bodyString);
 
-    clientConnection.appendResponseMessage("Server: crash-webserve\r\n");
+    this->appendContentDefaultHeaderFields(clientConnection);
     clientConnection.appendResponseMessage("Content-Length: ");
     std::ostringstream oss;
     oss << bodyString.length();
     clientConnection.appendResponseMessage(oss.str());
     clientConnection.appendResponseMessage("\r\n");
-    clientConnection.appendResponseMessage("Content-Type: text/html\r\n");
     clientConnection.appendResponseMessage("Connection: keep-alive\r\n");
-    clientConnection.appendResponseMessage("Date: ");
-    clientConnection.appendResponseMessage(this->makeDateHeaderField());
-    clientConnection.appendResponseMessage("\r\n\r\n");
+    clientConnection.appendResponseMessage("\r\n");
     clientConnection.appendResponseMessage(bodyString);
 
     return 0;
@@ -517,22 +504,19 @@ int VirtualServer::set411Response(Connection& clientConnection) {
 //      otherwise, a value of -1 is returned.
 int VirtualServer::set413Response(Connection& clientConnection) {
     clientConnection.clearResponseMessage();
-    this->setStatusLine(clientConnection, Status::I_413);
+    this->appendStatusLine(clientConnection, Status::I_413);
 
     std::string bodyString;
-    this->updateBodyString(Status::I_413, "File created.", bodyString);
+    this->updateBodyString(Status::I_413, NULL, bodyString);
 
-    clientConnection.appendResponseMessage("Server: crash-webserve\r\n");
+    this->appendContentDefaultHeaderFields(clientConnection);
     clientConnection.appendResponseMessage("Content-Length: ");
     std::ostringstream oss;
     oss << bodyString.length();
     clientConnection.appendResponseMessage(oss.str());
     clientConnection.appendResponseMessage("\r\n");
-    clientConnection.appendResponseMessage("Content-Type: text/html\r\n");
     clientConnection.appendResponseMessage("Connection: keep-alive\r\n");
-    clientConnection.appendResponseMessage("Date: ");
-    clientConnection.appendResponseMessage(this->makeDateHeaderField());
-    clientConnection.appendResponseMessage("\r\n\r\n");
+    clientConnection.appendResponseMessage("\r\n");
     clientConnection.appendResponseMessage(bodyString);
 
     return 0;
@@ -543,22 +527,19 @@ int VirtualServer::set413Response(Connection& clientConnection) {
 //  - Return(None)
 int VirtualServer::set500Response(Connection& clientConnection) {
     clientConnection.clearResponseMessage();
-    this->setStatusLine(clientConnection, Status::I_500);
+    this->appendStatusLine(clientConnection, Status::I_500);
 
     std::string bodyString;
-    this->updateBodyString(Status::I_500, "File created.", bodyString);
+    this->updateBodyString(Status::I_500, NULL, bodyString);
 
-    clientConnection.appendResponseMessage("Server: crash-webserve\r\n");
+    this->appendContentDefaultHeaderFields(clientConnection);
     clientConnection.appendResponseMessage("Content-Length: ");
     std::ostringstream oss;
     oss << bodyString.length();
     clientConnection.appendResponseMessage(oss.str());
     clientConnection.appendResponseMessage("\r\n");
-    clientConnection.appendResponseMessage("Content-Type: text/html\r\n");
     clientConnection.appendResponseMessage("Connection: keep-alive\r\n");
-    clientConnection.appendResponseMessage("Date: ");
-    clientConnection.appendResponseMessage(this->makeDateHeaderField());
-    clientConnection.appendResponseMessage("\r\n\r\n");
+    clientConnection.appendResponseMessage("\r\n");
     clientConnection.appendResponseMessage(bodyString);
 
     return 0;
@@ -566,7 +547,7 @@ int VirtualServer::set500Response(Connection& clientConnection) {
 
 int VirtualServer::setListResponse(Connection& clientConnection, const std::string& path) {
     clientConnection.clearResponseMessage();
-    this->setStatusLine(clientConnection, Status::I_200);
+    this->appendStatusLine(clientConnection, Status::I_200);
 
     DIR* dir;
 
@@ -589,17 +570,13 @@ int VirtualServer::setListResponse(Connection& clientConnection, const std::stri
 
     contentLength += 26;
 
+    this->appendContentDefaultHeaderFields(clientConnection);
     clientConnection.appendResponseMessage("Content-Length: ");
     std::ostringstream oss;
     oss << contentLength;
     clientConnection.appendResponseMessage(oss.str().c_str());
     clientConnection.appendResponseMessage("\r\n");
     clientConnection.appendResponseMessage("Connection: keep-alive\r\n");
-    clientConnection.appendResponseMessage("Content-Type: text/html\r\n");
-    clientConnection.appendResponseMessage("Date: ");
-    clientConnection.appendResponseMessage(this->makeDateHeaderField());
-    clientConnection.appendResponseMessage("\r\n");
-    clientConnection.appendResponseMessage("Server: crash-webserve\r\n");
     clientConnection.appendResponseMessage("\r\n");
 
     clientConnection.appendResponseMessage("<html>\r\n<head><title>Index of /</title></head>\r\n<body bgcolor=\"white\">\r\n<h1>Index of /</h1><hr><pre>");

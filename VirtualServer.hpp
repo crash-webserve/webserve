@@ -122,7 +122,9 @@ private:
     int processPOST(Connection& clientConnection);
     int processDELETE(Connection& clientConnection);
 
-    void setStatusLine(Connection& clientConnection, HTTP::Status::Index index);
+    void appendStatusLine(Connection& clientConnection, HTTP::Status::Index index);
+    void appendDefaultHeaderFields(Connection& clientConnection);
+    void appendContentDefaultHeaderFields(Connection& clientConnection);
     void updateBodyString(HTTP::Status::Index index, const char* description, std::string& bodystring) const;
 
     int set301Response(Connection& clientConnection, const std::map<std::string, std::vector<std::string> >& locOther);
