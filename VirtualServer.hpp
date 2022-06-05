@@ -7,7 +7,6 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
-#include <fstream>
 #include <sstream>
 #include <cstring>
 #include <sys/stat.h>
@@ -18,6 +17,7 @@
 #include "constant.hpp"
 
 class Connection;
+class EventHandler;
 
 typedef unsigned short port_t;
 
@@ -81,6 +81,7 @@ inline const char* getStatusReasonBy(HTTP::Status::Index index) {
 class VirtualServer {
 public:
     enum ReturnCode {
+        RC_ERROR,
         RC_SUCCESS,
         RC_IN_PROGRESS,
     };  // ReturnCode
@@ -97,9 +98,12 @@ public:
         this->_others.insert(make_pair(directiveName, directiveValue)); // TODO multi-value
     };
     void appendLocation(Location* lc) { this->_location.push_back(lc); };
-    int updateErrorPage(const std::string& statusCode, const std::string& filePath);
+    int updateErrorPage(EventHandler& eventHandler, const std::string& statusCode, const std::string& filePath);
+    EventContext::EventResult eventSetVirtualServerErrorPage(EventContext& context);
+    EventContext::EventResult eventGETResponse(EventContext& context, EventHandler& eventHandler);
+    EventContext::EventResult eventPOSTResponse(EventContext& context, EventHandler& eventHandler);
 
-    VirtualServer::ReturnCode processRequest(Connection& clientConnection);
+    VirtualServer::ReturnCode processRequest(Connection& clientConnection, EventHandler& eventHandler);
 
     std::string makeDateHeaderField();
     // std::string makeAllowHeaderField();
@@ -118,23 +122,23 @@ private:
 
     const Location* getMatchingLocation(const Request& request);
 
-    int processGET(Connection& clientConnection);
-    int processPOST(Connection& clientConnection);
-    int processDELETE(Connection& clientConnection);
+    ReturnCode processGET(Connection& clientConnection, EventHandler& eventHandler);
+    ReturnCode processPOST(Connection& clientConnection, EventHandler& eventHandler);
+    ReturnCode processDELETE(Connection& clientConnection);
 
     void appendStatusLine(Connection& clientConnection, HTTP::Status::Index index);
     void appendDefaultHeaderFields(Connection& clientConnection);
     void appendContentDefaultHeaderFields(Connection& clientConnection);
     void updateBodyString(HTTP::Status::Index index, const char* description, std::string& bodystring) const;
 
-    int set301Response(Connection& clientConnection, const std::map<std::string, std::vector<std::string> >& locOther);
-    int set400Response(Connection& clientConnection);
-    int set404Response(Connection& clientConnection);
-    int set405Response(Connection& clientConnection, const Location* locations);
-    int set411Response(Connection& clientConnection);
-    int set413Response(Connection& clientConnection);
-    int set500Response(Connection& clientConnection);
-    int setListResponse(Connection& clientConnection, const std::string& path);
+    ReturnCode set301Response(Connection& clientConnection, const std::map<std::string, std::vector<std::string> >& locOther);
+    ReturnCode set400Response(Connection& clientConnection);
+    ReturnCode set404Response(Connection& clientConnection);
+    ReturnCode set405Response(Connection& clientConnection, const Location* locations);
+    ReturnCode set411Response(Connection& clientConnection);
+    ReturnCode set413Response(Connection& clientConnection);
+    ReturnCode set500Response(Connection& clientConnection);
+    ReturnCode setListResponse(Connection& clientConnection, const std::string& path);
 };  // VirtualServer
 
 #endif  // VIRTUALSERVER_HPP_

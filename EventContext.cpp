@@ -20,5 +20,11 @@ std::string EventContext::getCallerTypeToString() {
 		return "EV_Response";
 	case EV_CGIResponse:
 		return "EV_CGIResponse";
+    case EV_SetVirtualServerErrorPage:
+        return "EV_SetVirtualServerErrorPage";
+    case EV_GETResponse:
+        return "EV_GETResponse";
+    case EV_POSTResponse:
+        return "EV_POSTResponse";
 	}
 }

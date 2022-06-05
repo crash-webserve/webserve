@@ -7,7 +7,8 @@
 Connection::Connection(port_t port, EventHandler& evHandler)
 : _client(false)
 , _hostPort(port)
-, _eventHandler(evHandler) {
+, _eventHandler(evHandler)
+, _targetVirtualServer(NULL) {
     this->newSocket();
     this->bindSocket();
     this->listenSocket();
@@ -26,7 +27,8 @@ Connection::Connection(int ident, std::string addr, port_t port, EventHandler& e
 , _hostPort(port)
 , _addr(addr)
 , _eventHandler(evHandler)
-, _closed(false) {
+, _closed(false)
+, _targetVirtualServer(NULL) {
     Log::verbose("New Client Connection: socket[%d]", _ident);
 }
 

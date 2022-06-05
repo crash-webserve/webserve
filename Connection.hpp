@@ -16,6 +16,8 @@
 
 #define TCP_MTU 1500
 
+class VirtualServer;
+
 typedef unsigned short port_t;
 
 //  General coonection handler, from generation communication.
@@ -28,7 +30,10 @@ typedef unsigned short port_t;
 //      _ident
 //      _addr
 //      _port
-//      _request
+//      _request: store request message and parse it.
+//      -response: store response message and send it to client.
+//
+//      _targetVirtualServer: the target to process request.
 //   - Methods
 class Connection {
 public:
@@ -41,6 +46,8 @@ public:
     port_t getPort() { return this->_hostPort; };
     const Request& getRequest() const { return this->_request; };
     bool isClosed() { return this->_closed; };
+    VirtualServer* getTargetVirtualServer() { return this->_targetVirtualServer; };
+    void setTargetVirtualServer(VirtualServer* targetVirtualServer) { this->_targetVirtualServer = targetVirtualServer; };
 
     Connection* acceptClient();
     EventContext::EventResult receive();
@@ -87,6 +94,8 @@ private:
 //    int _readEventTriggered;
 //    int _writeEventTriggered;
     bool _closed;
+
+    VirtualServer* _targetVirtualServer;
 
     Connection(int ident, std::string addr, port_t port, EventHandler& evHandler);
 

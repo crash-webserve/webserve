@@ -1,5 +1,8 @@
-#include <fstream>
+#include <fcntl.h>
 #include "VirtualServer.hpp"
+#include "EventHandler.hpp"
+#include "EventContext.hpp"
+#include "constant.hpp"
 
 using HTTP::Status;
 
@@ -42,20 +45,50 @@ VirtualServer::VirtualServer(port_t portNumber, const std::string& name)
 //      filePath: the path of file to read.
 //  - Return: upon successful completion a value of 0 is returned.
 //      otherwise, a value of -1 is returned.
-int VirtualServer::updateErrorPage(const std::string& statusCode, const std::string& filePath) {
-    std::ifstream errorPageFileStream(filePath, std::ios_base::binary);
-    if (!errorPageFileStream.is_open())
+int VirtualServer::updateErrorPage(EventHandler& eventHandler, const std::string& statusCode, const std::string& filePath) {
+    const int targetFileFD = open(filePath.c_str(), O_RDONLY);
+    if (targetFileFD == -1)
         return -1;
+    if (fcntl(targetFileFD, F_SETFL, O_NONBLOCK) == -1) {
+        close(targetFileFD);
+        return -1;
+    }
 
-    std::string& errorPage = this->_errorPage[statusCode];
-    errorPage.clear();
-    std::ostringstream oss;
-    oss << errorPageFileStream.rdbuf();
-    errorPage = oss.str();
-
-    errorPageFileStream.close();
+    std::pair<const std::string&, VirtualServer&>* tempData = new std::pair<const std::string&, VirtualServer&>(statusCode, *this);
+    eventHandler.addEvent(EVFILT_READ, targetFileFD, EventContext::EV_SetVirtualServerErrorPage, tempData);
 
     return 0;
+}
+
+//  event function reading a file and setting error page.
+//  - Parameters context: context of event.
+//  - Return: result of event.
+EventContext::EventResult VirtualServer::eventSetVirtualServerErrorPage(EventContext& context) {
+    char buf[BUF_SIZE];
+    ssize_t readByteCount;
+    const int targetFileFD = context.getIdent();
+    std::pair<const std::string&, VirtualServer&>* data = static_cast<std::pair<const std::string&, VirtualServer&>*>(context.getData());
+    const std::string& statusCode = data->first;
+
+    readByteCount = read(targetFileFD, buf, BUF_SIZE - 1);
+    if (readByteCount == -1) {
+        delete data;
+        delete &context;
+        close(targetFileFD);
+        return EventContext::ER_Done;
+    }
+    buf[readByteCount] = '\0';
+
+    this->_errorPage[statusCode].append(buf);
+
+    if (readByteCount == BUF_SIZE - 1)
+        return EventContext::ER_Continue;
+    else {
+        delete data;
+        delete &context;
+        close(targetFileFD);
+        return EventContext::ER_Done;
+    }
 }
 
 //  Process request from client.
@@ -63,27 +96,25 @@ int VirtualServer::updateErrorPage(const std::string& statusCode, const std::str
 //      clientConnection: The connection of client requesting process.
 //      kqueueFD: The kqueue fd is where to add write event for response.
 //  - Return: See the type definition.
-VirtualServer::ReturnCode VirtualServer::processRequest(Connection& clientConnection) {
+VirtualServer::ReturnCode VirtualServer::processRequest(Connection& clientConnection, EventHandler& eventHandler) {
     const Request& request = clientConnection.getRequest();
 
     if (request.isParsingFail()) {
-        if (this->set400Response(clientConnection) == -1)
-            this->set500Response(clientConnection);
-        return VirtualServer::RC_SUCCESS;
+        if (this->set400Response(clientConnection) == RC_ERROR)
+            return this->set500Response(clientConnection);
     }
     else if (request.isLengthRequired()) {
-        if (this->set411Response(clientConnection) == -1)
-            this->set500Response(clientConnection);
-        return VirtualServer::RC_SUCCESS;
+        if (this->set411Response(clientConnection) == RC_ERROR)
+            return this->set500Response(clientConnection);
     }
 
-    int returnCode = 0;
+    ReturnCode returnCode;
     switch(request.getMethod()) {
         case HTTP::RM_GET:
-            returnCode = processGET(clientConnection);
+            returnCode = processGET(clientConnection, eventHandler);
             break;
         case HTTP::RM_POST:
-            returnCode = processPOST(clientConnection);
+            returnCode = processPOST(clientConnection, eventHandler);
             break;
         case HTTP::RM_DELETE:
             returnCode = processDELETE(clientConnection);
@@ -93,10 +124,10 @@ VirtualServer::ReturnCode VirtualServer::processRequest(Connection& clientConnec
             break;
     }
 
-    if (returnCode == -1)
-        this->set500Response(clientConnection);
+    if (returnCode == RC_ERROR)
+        returnCode = this->set500Response(clientConnection);
 
-    return VirtualServer::RC_SUCCESS;
+    return returnCode;
 }
 
 //  get matching location for request.
@@ -118,7 +149,7 @@ const Location* VirtualServer::getMatchingLocation(const Request& request) {
 //  Process GET request.
 //  - Parameters request: The request to process.
 //  - Return(None)
-int VirtualServer::processGET(Connection& clientConnection) {
+VirtualServer::ReturnCode VirtualServer::processGET(Connection& clientConnection, EventHandler& eventHandler) {
     const Request& request = clientConnection.getRequest();
     const std::string& targetResourceURI = request.getTargetResourceURI();
     struct stat buf;
@@ -161,19 +192,17 @@ int VirtualServer::processGET(Connection& clientConnection) {
         clientConnection.appendResponseMessage("Connection: keep-alive\r\n");
         clientConnection.appendResponseMessage("\r\n");
 
-        std::ifstream targetRepresentation(targetRepresentationURI, std::ios_base::binary | std::ios_base::ate);
-        if (!targetRepresentation.is_open())
-            return -1;
+        const int targetFileFD = open(targetRepresentationURI.c_str(), O_RDONLY);
+        if (targetFileFD == -1)
+            return RC_ERROR;
+        if (fcntl(targetFileFD, F_SETFL, O_NONBLOCK) == -1) {
+            close(targetFileFD);
+            return RC_ERROR;
+        }
 
-        std::ifstream::pos_type size = targetRepresentation.tellg();
-        std::string str(size, '\0');
-        targetRepresentation.seekg(0);
-        if (targetRepresentation.read(&str[0], size))
-            clientConnection.appendResponseMessage(str.c_str());
+        eventHandler.addEvent(EVFILT_READ, targetFileFD, EventContext::EV_GETResponse, &clientConnection);
 
-        targetRepresentation.close();
-
-        return 0;
+        return RC_IN_PROGRESS;
     }
 
     if (stat(location.getIndex().c_str(), &buf) == 0
@@ -201,19 +230,17 @@ int VirtualServer::processGET(Connection& clientConnection) {
         clientConnection.appendResponseMessage("Connection: keep-alive\r\n");
         clientConnection.appendResponseMessage("\r\n");
 
-        std::ifstream targetRepresentation(location.getIndex(), std::ios_base::binary | std::ios_base::ate);
-        if (!targetRepresentation.is_open())
-            return -1;
+        const int targetFileFD = open(location.getIndex().c_str(), O_RDONLY);
+        if (targetFileFD == -1)
+            return RC_ERROR;
+        if (fcntl(targetFileFD, F_SETFL, O_NONBLOCK) == -1) {
+            close(targetFileFD);
+            return RC_ERROR;
+        }
 
-        std::ifstream::pos_type size = targetRepresentation.tellg();
-        std::string str(size, '\0');
-        targetRepresentation.seekg(0);
-        if (targetRepresentation.read(&str[0], size))
-            clientConnection.appendResponseMessage(str.c_str());
+        eventHandler.addEvent(EVFILT_READ, targetFileFD, EventContext::EV_GETResponse, &clientConnection);
 
-        targetRepresentation.close();
-
-        return 0;
+        return RC_IN_PROGRESS;
     }
 
     if (location.getAutoIndex()
@@ -224,10 +251,42 @@ int VirtualServer::processGET(Connection& clientConnection) {
     return this->set404Response(clientConnection);
 }
 
+
+//  event function reading a file and responding of GET request.
+//  - Parameters context: context of event.
+//  - Return: result of event.
+EventContext::EventResult VirtualServer::eventGETResponse(EventContext& context, EventHandler& eventHandler) {
+    char buf[BUF_SIZE];
+    ssize_t readByteCount;
+    const int targetFileFD = context.getIdent();
+    Connection& clientConnection = *static_cast<Connection*>(context.getData());
+
+    readByteCount = read(targetFileFD, buf, BUF_SIZE - 1);
+    if (readByteCount == -1) {
+        delete &context;
+        close(targetFileFD);
+        return EventContext::ER_Done;
+    }
+    buf[readByteCount] = '\0';
+
+    clientConnection.appendResponseMessage(buf);
+
+    if (readByteCount == BUF_SIZE - 1)
+        return EventContext::ER_Continue;
+    else {
+        delete &context;
+        close(targetFileFD);
+
+        const int clientSocketFD = clientConnection.getIdent();
+        eventHandler.addEvent(EVFILT_WRITE, clientSocketFD, EventContext::EV_Response, &clientConnection);
+        return EventContext::ER_Done;
+    }
+}
+
 //  Process POST request.
 //  - Parameters request: The request to process.
 //  - Return(None)
-int VirtualServer::processPOST(Connection& clientConnection) {
+VirtualServer::ReturnCode VirtualServer::processPOST(Connection& clientConnection, EventHandler& eventHandler) {
     const Request& request = clientConnection.getRequest();
     const std::string& targetResourceURI = request.getTargetResourceURI();
     std::string targetRepresentationURI;
@@ -245,13 +304,55 @@ int VirtualServer::processPOST(Connection& clientConnection) {
     if (!location.isRequestMethodAllowed(request.getMethod()))
         return this->set405Response(clientConnection, &location);
 
-    std::ofstream out(targetRepresentationURI.c_str());
-    if (!out.is_open())
-        return -1;
+    const int targetFileFD = open(targetRepresentationURI.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (targetFileFD == -1)
+        return RC_ERROR;
+    if (fcntl(targetFileFD, F_SETFL, O_NONBLOCK) == -1) {
+        close(targetFileFD);
+        return RC_ERROR;
+    }
 
-    const std::string& requestBody = clientConnection.getRequest().getBody();
-    out << requestBody;
-    out.close();
+    eventHandler.addEvent(EVFILT_WRITE, targetFileFD, EventContext::EV_POSTResponse, &clientConnection);
+
+    return RC_IN_PROGRESS;
+}
+
+//  event function writing a file and responding of POST request.
+//  - Parameters context: context of event.
+//  - Return: result of event.
+EventContext::EventResult VirtualServer::eventPOSTResponse(EventContext& context, EventHandler& eventHandler) {
+    typedef std::pair<std::string, const char*> ElementType;
+    typedef std::map<int, ElementType> SendBeginMapType;
+
+    static SendBeginMapType sendBeginMap;
+    const int targetFileFD = context.getIdent();
+    Connection& clientConnection = *static_cast<Connection*>(context.getData());
+
+    ElementType* element;
+    const SendBeginMapType::iterator iter = sendBeginMap.find(targetFileFD);
+    if (iter == sendBeginMap.end()) {
+        element = &sendBeginMap[targetFileFD];
+        element->first = clientConnection.getRequest().getBody();
+        element->second = &element->first[0];
+    }
+    else {
+        element = &iter->second;
+    }
+
+    const char* const sendBegin = element->second;
+    std::size_t lengthToSend = std::strlen(sendBegin);
+
+    ssize_t writeByteCount;
+    writeByteCount = write(targetFileFD, sendBegin, lengthToSend);
+
+    if (static_cast<std::size_t>(writeByteCount) != lengthToSend) {
+        element->second += writeByteCount;
+        return EventContext::ER_Continue;
+    }
+
+    sendBeginMap.erase(targetFileFD);
+    delete &context;
+    close(targetFileFD);
 
     this->appendStatusLine(clientConnection, Status::I_201);
 
@@ -268,13 +369,16 @@ int VirtualServer::processPOST(Connection& clientConnection) {
     clientConnection.appendResponseMessage("\r\n");
     clientConnection.appendResponseMessage(bodyString);
 
-    return 0;
+    const int clientSocketFD = clientConnection.getIdent();
+    eventHandler.addEvent(EVFILT_WRITE, clientSocketFD, EventContext::EV_Response, &clientConnection);
+
+    return EventContext::ER_Done;
 }
 
 //  Process DELETE request.
 //  - Parameters request: The request to process.
 //  - Return(None)
-int VirtualServer::processDELETE(Connection& clientConnection) {
+VirtualServer::ReturnCode VirtualServer::processDELETE(Connection& clientConnection) {
     const Request& request = clientConnection.getRequest();
     const std::string& targetResourceURI = request.getTargetResourceURI();
     struct stat buf;
@@ -293,7 +397,7 @@ int VirtualServer::processDELETE(Connection& clientConnection) {
     if (stat(targetRepresentationURI.c_str(), &buf) == 0) {
 
         if (unlink(targetRepresentationURI.c_str()) == -1)
-            return -1;
+            return RC_ERROR;
 
         this->appendStatusLine(clientConnection, Status::I_200);
 
@@ -310,7 +414,7 @@ int VirtualServer::processDELETE(Connection& clientConnection) {
         clientConnection.appendResponseMessage("\r\n");
         clientConnection.appendResponseMessage(bodyString);
 
-        return 0;
+        return RC_SUCCESS;
     }
 
     return this->set404Response(clientConnection);
@@ -341,6 +445,7 @@ void VirtualServer::appendContentDefaultHeaderFields(Connection& clientConnectio
     clientConnection.appendResponseMessage("Content-Type: text/html\r\n");
 }
 
+//  update body string.
 void VirtualServer::updateBodyString(HTTP::Status::Index index, const char* description, std::string& bodyString) const {
     const char* statusCode = getStatusCodeBy(index);
     const std::map<std::string, std::string>::const_iterator errorPageIterator = this->_errorPage.find(statusCode);
@@ -350,7 +455,7 @@ void VirtualServer::updateBodyString(HTTP::Status::Index index, const char* desc
         bodyString = errorPageIterator->second;
 }
 
-int VirtualServer::set301Response(Connection& clientConnection, const std::map<std::string, std::vector<std::string> >& locOther) {
+VirtualServer::ReturnCode VirtualServer::set301Response(Connection& clientConnection, const std::map<std::string, std::vector<std::string> >& locOther) {
     std::string bodyString;
     std::stringstream ss;
 
@@ -372,14 +477,14 @@ int VirtualServer::set301Response(Connection& clientConnection, const std::map<s
     clientConnection.appendResponseMessage("\r\n");
 
     clientConnection.appendResponseMessage(bodyString);
-    return 0;
+    return RC_SUCCESS;
 }
 
 //  set response message with 400 status.
 //  - Parameters clientConnection: The client connection.
 //  - Return: upon successful completion a value of 0 is returned.
 //      otherwise, a value of -1 is returned.
-int VirtualServer::set400Response(Connection& clientConnection) {
+VirtualServer::ReturnCode VirtualServer::set400Response(Connection& clientConnection) {
     clientConnection.clearResponseMessage();
     this->appendStatusLine(clientConnection, Status::I_400);
 
@@ -396,13 +501,13 @@ int VirtualServer::set400Response(Connection& clientConnection) {
     clientConnection.appendResponseMessage("\r\n");
     clientConnection.appendResponseMessage(bodyString);
 
-    return 0;
+    return RC_SUCCESS;
 }
 
 //  set response message with 404 status.
 //  - Parameters clientConnection: The client connection.
 //  - Return(None)
-int VirtualServer::set404Response(Connection& clientConnection) {
+VirtualServer::ReturnCode VirtualServer::set404Response(Connection& clientConnection) {
     clientConnection.clearResponseMessage();
     this->appendStatusLine(clientConnection, Status::I_404);
 
@@ -419,13 +524,13 @@ int VirtualServer::set404Response(Connection& clientConnection) {
     clientConnection.appendResponseMessage("\r\n");
     clientConnection.appendResponseMessage(bodyString);
 
-    return 0;
+    return RC_SUCCESS;
 }
 
 //  set response message with 405 status.
 //  - Parameters clientConnection: The client connection.
 //  - Return(None)
-int VirtualServer::set405Response(Connection& clientConnection, const Location* location) {
+VirtualServer::ReturnCode VirtualServer::set405Response(Connection& clientConnection, const Location* location) {
     clientConnection.clearResponseMessage();
     this->appendStatusLine(clientConnection, Status::I_405);
 
@@ -455,17 +560,16 @@ int VirtualServer::set405Response(Connection& clientConnection, const Location* 
         clientConnection.appendResponseMessage("\r\n");
     }
     clientConnection.appendResponseMessage("\r\n");
-
     clientConnection.appendResponseMessage(bodyString);
 
-    return 0;
+    return RC_SUCCESS;
 }
 
 //  set response message with 411 status.
 //  - Parameters clientConnection: The client connection.
 //  - Return: upon successful completion a value of 0 is returned.
 //      otherwise, a value of -1 is returned.
-int VirtualServer::set411Response(Connection& clientConnection) {
+VirtualServer::ReturnCode VirtualServer::set411Response(Connection& clientConnection) {
     clientConnection.clearResponseMessage();
     this->appendStatusLine(clientConnection, Status::I_411);
 
@@ -482,14 +586,14 @@ int VirtualServer::set411Response(Connection& clientConnection) {
     clientConnection.appendResponseMessage("\r\n");
     clientConnection.appendResponseMessage(bodyString);
 
-    return 0;
+    return RC_SUCCESS;
 }
 
 //  set response message with 413 status.
 //  - Parameters clientConnection: The client connection.
 //  - Return: upon successful completion a value of 0 is returned.
 //      otherwise, a value of -1 is returned.
-int VirtualServer::set413Response(Connection& clientConnection) {
+VirtualServer::ReturnCode VirtualServer::set413Response(Connection& clientConnection) {
     clientConnection.clearResponseMessage();
     this->appendStatusLine(clientConnection, Status::I_413);
 
@@ -506,13 +610,13 @@ int VirtualServer::set413Response(Connection& clientConnection) {
     clientConnection.appendResponseMessage("\r\n");
     clientConnection.appendResponseMessage(bodyString);
 
-    return 0;
+    return RC_SUCCESS;
 }
 
 //  set response message with 500 status.
 //  - Parameters clientConnection: The client connection.
 //  - Return(None)
-int VirtualServer::set500Response(Connection& clientConnection) {
+VirtualServer::ReturnCode VirtualServer::set500Response(Connection& clientConnection) {
     clientConnection.clearResponseMessage();
     this->appendStatusLine(clientConnection, Status::I_500);
 
@@ -529,10 +633,11 @@ int VirtualServer::set500Response(Connection& clientConnection) {
     clientConnection.appendResponseMessage("\r\n");
     clientConnection.appendResponseMessage(bodyString);
 
-    return 0;
+    return RC_SUCCESS;
 }
 
-int VirtualServer::setListResponse(Connection& clientConnection, const std::string& path) {
+//  set body for directory listing.
+VirtualServer::ReturnCode VirtualServer::setListResponse(Connection& clientConnection, const std::string& path) {
     clientConnection.clearResponseMessage();
     this->appendStatusLine(clientConnection, Status::I_200);
 
@@ -540,7 +645,7 @@ int VirtualServer::setListResponse(Connection& clientConnection, const std::stri
 
     dir = opendir(path.c_str());
     if (dir == NULL)
-        return -1;
+        return RC_ERROR;
 
     int contentLength = 100;
     while (true) {
@@ -570,7 +675,7 @@ int VirtualServer::setListResponse(Connection& clientConnection, const std::stri
 
     dir = opendir(path.c_str());
     if (dir == NULL)
-        return -1;
+        return RC_ERROR;
 
     while (true) {
         const struct dirent* entry = readdir(dir);
@@ -598,7 +703,7 @@ int VirtualServer::setListResponse(Connection& clientConnection, const std::stri
 
     clientConnection.appendResponseMessage("</pre><hr></body></html>\r\n");
 
-    return 0;
+    return RC_SUCCESS;
 }
 // Find the current time based on GMT
 //  - Parameters(None)
@@ -668,8 +773,6 @@ static void updateExtension(const std::string& name, std::string& extension) {
     extension.clear();
     if (extensionBeginPosition !=  std::string::npos)
         extension = name.c_str() + extensionBeginPosition;
-    else
-        return;
 }
 
 //  generate body string with index, description.

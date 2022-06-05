@@ -75,6 +75,10 @@ private:
     EventContext::EventResult driveThisEvent(EventContext* context, int filter);
     void runEachEvent(struct kevent event);
     void callVirtualServerMethod(EventContext* context);
+
+    EventContext::EventResult eventSetVirtualServerErrorPage(EventContext& context);
+    EventContext::EventResult eventGETResponse(EventContext& context);
+    EventContext::EventResult eventPOSTResponse(EventContext& context);
 };
 
 #endif  // FTSERVER_HPP_
