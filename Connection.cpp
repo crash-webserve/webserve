@@ -145,10 +145,10 @@ void Connection::newSocket() {
     int     enable = 1;
 
     if (0 > newConnection) {
-        throw std::runtime_error("socket() Failed");
+        throw Connection::MAKESOCKETFAIL();
     }
     if (0 > setsockopt(newConnection, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int))) {
-        throw std::runtime_error("setup socket Failed");
+        throw Connection::SETUPSOCKETOPTFAIL();
     }
     // Log::verbose("Connection ( %d ) has been setted to Reusable.", newConnection);
     this->_ident = newConnection;
@@ -172,7 +172,7 @@ void Connection::bindSocket() {
     setAddrStruct(this->_hostPort, addr_in);
     addr = reinterpret_cast<sockaddr*>(&addr_in);
     if (0 > bind(this->_ident, addr, sizeof(*addr))) {
-        throw std::runtime_error("bind error");
+        throw Connection::BINDSOCKETERROR();
     }
 }
 
@@ -180,7 +180,7 @@ void Connection::bindSocket() {
 //  - Return(none)
 void Connection::listenSocket() {
     if (0 > listen(_ident, 10)) {
-        throw std::runtime_error("listen() Failed");
+        throw Connection::LISTENSOCKETERROR();
     }
 }
 
