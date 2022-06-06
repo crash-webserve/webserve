@@ -351,22 +351,19 @@ void VirtualServer::updateBodyString(HTTP::Status::Index index, const char* desc
 }
 
 int VirtualServer::set301Response(Connection& clientConnection, const std::map<std::string, std::vector<std::string> >& locOther) {
-    struct stat buf;
+    std::string bodyString;
+    std::stringstream ss;
 
     clientConnection.clearResponseMessage();
     this->appendStatusLine(clientConnection, Status::I_301);
-    stat(REDIRECT_PATH.c_str(), &buf);
     this->appendDefaultHeaderFields(clientConnection);
     clientConnection.appendResponseMessage("Connection: keep-alive\r\n");
     clientConnection.appendResponseMessage("Content-Length: ");
-    std::ostringstream oss;
-    oss << buf.st_size;
-    clientConnection.appendResponseMessage(oss.str().c_str());
+    this->updateBodyString(Status::I_301, NULL, bodyString);
+    ss << bodyString.size();
+    clientConnection.appendResponseMessage(ss.str().c_str());
     clientConnection.appendResponseMessage("\r\n");
-    clientConnection.appendResponseMessage("Content-Type: ");
-    std::string type;
-    updateContentType(REDIRECT_PATH, type);
-    clientConnection.appendResponseMessage(type);
+    clientConnection.appendResponseMessage("Content-Type: text/html");
     clientConnection.appendResponseMessage("\r\n");
     // location
     clientConnection.appendResponseMessage("Location: ");
@@ -374,17 +371,7 @@ int VirtualServer::set301Response(Connection& clientConnection, const std::map<s
     clientConnection.appendResponseMessage("\r\n");
     clientConnection.appendResponseMessage("\r\n");
 
-    std::ifstream redirection(REDIRECT_PATH, std::ios_base::binary | std::ios_base::ate);
-    if (!redirection.is_open())
-        return -1;
-
-    std::ifstream::pos_type size = redirection.tellg();
-    std::string str(size, '\0');
-    redirection.seekg(0);
-    if (redirection.read(&str[0], size))
-        clientConnection.appendResponseMessage(str.c_str());
-
-    redirection.close();
+    clientConnection.appendResponseMessage(bodyString);
     return 0;
 }
 
