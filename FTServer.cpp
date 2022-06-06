@@ -14,15 +14,21 @@ _eventHandler(EventHandler()) {
 // Destructor of FTServer
 //  - Parameters(None)
 FTServer::~FTServer() {
-    ConnectionMapIter   connectionIter = _mConnection.begin();
-    for (;connectionIter != _mConnection.end() ; connectionIter++) {
+    for (ConnectionMapIter   connectionIter = _mConnection.begin();
+        connectionIter != _mConnection.end();
+        connectionIter++) {
         delete connectionIter->second;
     }
-
-    for (VirtualServerConfigIter itr = _defaultConfigs.begin(); itr != _defaultConfigs.end(); ++itr) {
+    for (VirtualServerConfigIter itr = _defaultConfigs.begin();
+        itr != _defaultConfigs.end();
+        ++itr) {
         delete (*itr);
     }
-
+    for (VirtualServerVec::iterator itr = _vVirtualServers.begin();
+        itr != _vVirtualServers.end();
+        itr++) {
+        delete *itr;
+    }
     Log::verbose("All Connections has been deleted.");
     // close(_kqueue);
 }

@@ -5,13 +5,11 @@ int main(int argc, char **argv) {
     FTServer ftServer;
 	std::string configFile;
 
-    if (argc != 2) {
-        std::cerr << "입력 인자 숫자 달라~ ... setting to default configuration file.\n";
-		configFile = "./conf/sample.conf";
-	} else {
+	if (argc != 2) {
+		configFile = DEFAULT_CONF_PATH;
+		Log::info("Set up default configuration file.");
+	} else
 		configFile = argv[1];
-	}
-	
 	try {
         ftServer.initParseConfig(configFile);
 		ftServer.init();
@@ -21,6 +19,5 @@ int main(int argc, char **argv) {
 		Log::error("VirtualServer::Fatal Error [%s]", excep.what());
 		// TODO: graceful shutdown process
 	}
-
     return 0;
 }

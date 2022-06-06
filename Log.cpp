@@ -7,13 +7,13 @@ const char* Log::getPrefix(int logLevel) {
         case LogVerbose:
             return "\033[34m[VERBOSE]\033[0m";
         case LogDebug:
-            return "\033[37m[DEBUG]\033[0m";
+            return "\033[37m[DEBUG]  \033[0m";
         case LogInfo:
-            return "\033[32m[INFO]\033[0m";
+            return "\033[32m[INFO]   \033[0m";
         case LogWarning:
             return "\033[33m[WARNING]\033[0m";
         case LogError:
-            return "\033[35m[ERROR]\033[0m";
+            return "\033[35m[ERROR]  \033[0m";
         default:
             return "\033[0m";
     }
