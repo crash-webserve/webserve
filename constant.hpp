@@ -2,6 +2,8 @@
 #define CONSTANT_HPP_
 
 const int BUF_SIZE = 1024;
+const std::string REDIRECT_PATH = "/Users/mike2ox/Project/webserve/html/redirect.html";
+const std::string DEFAULT_CONF_PATH = "./conf/sample.conf";
 
 #define SAMPLE_RESPONSE "HTTP/1.1 200 OK\r\n\
 Content-Length: 365\r\n\

@@ -51,6 +51,31 @@ public:
     void appendResponseMessage(const std::string& message);
     EventContext::EventResult handleCGIResponse(int CGIPipeOut);
 
+    class MAKESOCKETFAIL: public std::exception {
+    public:
+        virtual const char* what() const throw() {
+            return "socket() fail error";
+        }
+    };
+    class SETUPSOCKETOPTFAIL: public std::exception {
+    public:
+        virtual const char* what() const throw() {
+            return "setsocketopt() faile error";
+        }
+    };
+    class BINDSOCKETERROR: public std::exception {
+    public:
+        virtual const char* what() const throw() {
+            return "bind() fail error";
+        }
+    };
+    class LISTENSOCKETERROR: public std::exception {
+    public:
+        virtual const char* what() const throw() {
+            return "listen() fail error!!";
+        }
+    };
+    
 private:
     bool _client;
     int _ident;

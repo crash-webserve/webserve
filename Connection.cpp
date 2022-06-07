@@ -145,11 +145,10 @@ void Connection::newSocket() {
     int     enable = 1;
 
     if (0 > newConnection) {
-        throw;
+        throw Connection::MAKESOCKETFAIL();
     }
-    // Log::verbose("New Server Connection ( %d )", newConnection);
     if (0 > setsockopt(newConnection, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int))) {
-        throw;
+        throw Connection::SETUPSOCKETOPTFAIL();
     }
     // Log::verbose("Connection ( %d ) has been setted to Reusable.", newConnection);
     this->_ident = newConnection;
@@ -173,18 +172,16 @@ void Connection::bindSocket() {
     setAddrStruct(this->_hostPort, addr_in);
     addr = reinterpret_cast<sockaddr*>(&addr_in);
     if (0 > bind(this->_ident, addr, sizeof(*addr))) {
-        throw; // TODO
+        throw Connection::BINDSOCKETERROR();
     }
-    // Log::verbose("Connection ( %d ) bind succeed.", this->_ident);
 }
 
 // Listen to the socket for incoming messages.
 //  - Return(none)
 void Connection::listenSocket() {
     if (0 > listen(_ident, 10)) {
-        throw;
+        throw Connection::LISTENSOCKETERROR();
     }
-    // Log::verbose("Listening from Connection ( %d ), Port ( %d ).", this->_ident, this->_hostPort);
 }
 
 EventContext::EventResult Connection::passParsedRequest() {
