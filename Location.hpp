@@ -23,7 +23,7 @@ public:
     bool isRequestMethodAllowed(HTTP::RequestMethod requestMethod) const;
     void updateRepresentationPath(const std::string& resourceURI, std::string& representationPath) const;
 
-    std::string getRoute() { return this->_route; };
+    std::string getRoute() const { return this->_route; };
     std::string getRoot() const { return this->_root; };
     std::string getIndex() const { return this->_index; };
     bool getAutoIndex() const { return this->_autoindex; };
