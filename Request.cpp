@@ -8,6 +8,10 @@
 
 static void tolower(std::string& value);
 
+Request::Request()
+: _parsingStatus(S_NONE)
+{ }
+
 //  Destructor of Request object.
 Request::~Request() {
     for (HeaderSectionType::iterator iter = this->_headerSection.begin(); iter != this->_headerSection.end(); ++iter)
@@ -36,20 +40,26 @@ void Request::clearMessage() {
 //  - Parameters clientSocketFD: The fd to recv().
 //  - Return: See the type definition.
 ReturnCaseOfRecv Request::receive(int clientSocketFD) {
+    if (!(this->isStatusNone() || this->isStatusParsingBody()))
+        return RCRECV_ALREADY_PROCESSING_WAIT;
+
     ssize_t result = this->receiveMessage(clientSocketFD);
     if (result == -1)
         return RCRECV_ERROR;
     else if (result == 0)
         return RCRECV_ZERO;
 
-    if (this->isReadyToProcess()) {
+    ReturnCaseOfRecv returnCode;
+    if (this->isReadyToProcess() || this->isStatusParsingBody()) {
         this->_parsingStatus = this->parseMessage();
         if (this->_parsingStatus == S_PARSING_FAIL)
             this->_message.clear();
-        return RCRECV_PARSING_FINISH;
+        returnCode = (this->_parsingStatus == S_PARSING_BODY) ? RCRECV_SOME : RCRECV_PARSING_FINISH;
     }
+    else
+        returnCode = RCRECV_SOME;
 
-    return RCRECV_SOME;
+    return returnCode;
 }
 
 //  Returns whether Request received the end of header section or not.
@@ -103,58 +113,78 @@ void Request::appendMessage(const char* message) {
 //  - Return: Whether the parsing succeeded or not.
 Request::Status Request::parseMessage() {
     std::istringstream iss(this->_message);
-    std::string line;
+    std::size_t parsedPositionOfMessage = 0;
 
-    if (!std::getline(iss, line, '\r'))
-        return S_PARSING_FAIL;
-    if (this->parseRequestLine(line) == PR_FAIL)
-        return S_PARSING_FAIL;
+    if (!this->isStatusParsingBody()) {
+        std::string line;
 
-    for (HeaderSectionType::iterator itr = this->_headerSection.begin();
-        itr != this->_headerSection.end();
-        itr++) {
-            delete *itr;
-        }
-    this->_headerSection.clear();
-    while (true) {
-        iss.get();
         if (!std::getline(iss, line, '\r'))
             return S_PARSING_FAIL;
-        if (line.empty())
-            break;
-        if (parseHeader(line) == PR_FAIL)
+        if (this->parseRequestLine(line) == PR_FAIL)
             return S_PARSING_FAIL;
+
+        for (HeaderSectionType::iterator itr = this->_headerSection.begin();
+            itr != this->_headerSection.end();
+            itr++) {
+                delete *itr;
+            }
+        this->_headerSection.clear();
+        while (true) {
+            iss.get();
+            if (!std::getline(iss, line, '\r'))
+                return S_PARSING_FAIL;
+            if (line.empty())
+                break;
+            if (parseHeader(line) == PR_FAIL)
+                return S_PARSING_FAIL;
+        }
+
+        if (iss.get() != '\n')
+            return S_PARSING_FAIL;
+
+        this->_body.clear();
+        parsedPositionOfMessage = iss.tellg();
+        this->_parsingStatus = S_PARSING_BODY;
     }
 
-    if (iss.get() != '\n')
-        return S_PARSING_FAIL;
-
-    if (this->_method == (HTTP::RM_GET | HTTP::RM_DELETE)) {
-        this->_message.erase(0, iss.tellg());
-        return S_PARSING_SUCCESS;
-    }
+    ParsingResult result;
 
     if (this->isChunked()) {
-        if (this->parseChunkToBody(iss) == PR_FAIL)
-            return S_PARSING_FAIL;
+        result = this->parseChunkToBody(iss, parsedPositionOfMessage);
     }
     else {
         const std::string* headerFieldValue = getFirstHeaderFieldValueByName("content-length");
         if (headerFieldValue != NULL) {
             std::istringstream sizeStream(*headerFieldValue);
-            unsigned long bodySize;
-            sizeStream >> bodySize;
-            if (!sizeStream || sizeStream.get() != EOF)
+            ssize_t ssizeBodySize;
+            sizeStream >> ssizeBodySize;
+            if (!sizeStream || sizeStream.get() != EOF || ssizeBodySize < 0)
                 return S_PARSING_FAIL;
-            this->_body = this->_message.substr(iss.tellg(), bodySize);
+            const std::size_t bodySize = static_cast<std::size_t>(ssizeBodySize);
+            const std::size_t sizeLeft = bodySize - this->_body.length();
+            std::string moreBody = this->_message.substr(parsedPositionOfMessage, sizeLeft);
+            this->_body += moreBody;
+            parsedPositionOfMessage += moreBody.length();
+            if (this->_body.length() != bodySize)
+                result = PR_EOF;
+            else
+                result = PR_SUCCESS;
         }
-        else if (iss.get() != EOF) {
-            this->_message.clear();
-            return S_LENGTH_REQUIRED;
+        else {
+            if (this->_method == HTTP::RM_POST)
+                return S_LENGTH_REQUIRED;
+            else
+                result = PR_SUCCESS;
         }
     }
 
-    this->_message.erase(0, static_cast<unsigned long>(iss.tellg()) + this->_body.length());
+    this->_message.erase(0, parsedPositionOfMessage);
+
+    if (result == PR_FAIL)
+        return S_PARSING_FAIL;
+    else if (result == PR_EOF) {
+        return S_PARSING_BODY;
+    }
 
     return S_PARSING_SUCCESS;
 }
@@ -230,24 +260,25 @@ ParsingResult Request::parseHeader(const std::string& headerField) {
 //  Parse chunked body.
 //  - Parameters iss: input string stream of body.
 //  - Return: Whether the parsing succeeded or not.
-ParsingResult Request::parseChunkToBody(std::istringstream& iss) {
-    this->_body.clear();
-
+ParsingResult Request::parseChunkToBody(std::istringstream& iss, std::size_t& parsedPositionOfMessage) {
     while (true) {
         const std::ios_base::fmtflags ff = iss.flags();
         iss.setf(std::ios_base::hex, std::ios_base::basefield);
         int chunkLength;
         if (std::isspace(iss.peek()))
-            return PR_FAIL;
+            return iss.eof() ? PR_EOF : PR_FAIL;
         iss >> chunkLength;
         iss.flags(ff);
         iss.get();
         iss.get();
-        std::string chunk(chunkLength, '\0');
+        std::string chunk(chunkLength + 1, '\0');
         iss.read(&chunk[0], chunkLength);
-        this->_body += chunk;
         if (iss.get() != '\r' || iss.get() != '\n')
-            return PR_FAIL;
+            return iss.eof() ? PR_EOF : PR_FAIL;
+
+        this->_body += chunk;
+        parsedPositionOfMessage = iss.tellg();
+
         if (chunkLength == 0)
             break;
     }

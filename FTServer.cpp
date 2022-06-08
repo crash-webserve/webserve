@@ -226,6 +226,7 @@ void FTServer::callVirtualServerMethod(EventContext* context) {
     VirtualServer::ReturnCode result;
 
     result = matchingServer.processRequest(*connection, this->_eventHandler);
+    connection->resetRequestStatus();
     switch (result) {
         case VirtualServer::RC_ERROR:
             break;

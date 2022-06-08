@@ -8,6 +8,7 @@
 enum ParsingResult {
     PR_SUCCESS,
     PR_FAIL,
+    PR_EOF,
 };
 
 namespace HTTP {
@@ -34,6 +35,7 @@ enum ReturnCaseOfRecv {
     RCRECV_ZERO,
     RCRECV_SOME,
     RCRECV_PARSING_FINISH,
+    RCRECV_ALREADY_PROCESSING_WAIT,
 };
 
 //  Accumulate HTTP request message and parse it and store.
@@ -51,6 +53,8 @@ enum ReturnCaseOfRecv {
 class Request {
 public:
     enum Status {
+        S_NONE,
+        S_PARSING_BODY,
         S_PARSING_FAIL,
         S_PARSING_SUCCESS,
         S_LENGTH_REQUIRED,
@@ -59,6 +63,7 @@ public:
     typedef std::pair<std::string, std::string> HeaderSectionElementType;
     typedef std::vector<HeaderSectionElementType*> HeaderSectionType;
 
+    Request();
     ~Request();
 
     HTTP::RequestMethod getMethod() const { return this->_method; };
@@ -70,6 +75,7 @@ public:
     const std::string& getBody() const { return this->_body; };
 
     void clearMessage();
+    void resetStatus() { this->_parsingStatus = S_NONE; };
     bool isParsingFail() const { return this->_parsingStatus == S_PARSING_FAIL; };
     bool isLengthRequired() const { return this->_parsingStatus == S_LENGTH_REQUIRED; };
 
@@ -91,6 +97,8 @@ private:
 
     bool isReadyToProcess() const;
     bool isChunked() const;
+    bool isStatusNone() const { return this->_parsingStatus == S_NONE; };
+    bool isStatusParsingBody() const { return this->_parsingStatus == S_PARSING_BODY; };
 
     ssize_t receiveMessage(int clientSocketFD);
     void appendMessage(const char* message);
@@ -99,7 +107,7 @@ private:
     ParsingResult parseRequestLine(const std::string& requestLine);
     ParsingResult parseHTTPVersion(const std::string& token);
     ParsingResult parseHeader(const std::string& headerField);
-    ParsingResult parseChunkToBody(std::istringstream& iss);
+    ParsingResult parseChunkToBody(std::istringstream& iss, std::size_t& parsedPositionOfMessage);
 
     HTTP::RequestMethod requestMethodByString(const std::string& token);
 };

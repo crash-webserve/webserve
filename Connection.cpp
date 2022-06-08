@@ -77,6 +77,8 @@ EventContext::EventResult Connection::receive() {
 		break;
 	case RCRECV_PARSING_FINISH:
 		return this->passParsedRequest();
+    case RCRECV_ALREADY_PROCESSING_WAIT:
+        break;
 	}
 	return EventContext::ER_Continue;
 }
