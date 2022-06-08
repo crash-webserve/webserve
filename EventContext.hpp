@@ -12,6 +12,9 @@ public:
 		EV_Request,
 		EV_Response,
 		EV_CGIResponse,
+        EV_SetVirtualServerErrorPage,
+        EV_GETResponse,
+        EV_POSTResponse,
 	};
 	enum EventResult {
 		ER_Done,

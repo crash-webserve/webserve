@@ -7,7 +7,8 @@
 Connection::Connection(port_t port, EventHandler& evHandler)
 : _client(false)
 , _hostPort(port)
-, _eventHandler(evHandler) {
+, _eventHandler(evHandler)
+, _targetVirtualServer(NULL) {
     this->newSocket();
     this->bindSocket();
     this->listenSocket();
@@ -26,7 +27,8 @@ Connection::Connection(int ident, std::string addr, port_t port, EventHandler& e
 , _hostPort(port)
 , _addr(addr)
 , _eventHandler(evHandler)
-, _closed(false) {
+, _closed(false)
+, _targetVirtualServer(NULL) {
     Log::verbose("New Client Connection: socket[%d]", _ident);
 }
 
@@ -182,6 +184,8 @@ void Connection::listenSocket() {
     if (0 > listen(_ident, 10)) {
         throw Connection::LISTENSOCKETERROR();
     }
+    if (fcntl(this->_ident, F_SETFL, O_NONBLOCK) == -1)
+        throw Connection::LISTENSOCKETERROR();
 }
 
 EventContext::EventResult Connection::passParsedRequest() {
