@@ -158,7 +158,7 @@ VirtualServer::ReturnCode VirtualServer::processGET(Connection& clientConnection
     std::string targetRepresentationURI;
 
     if (this->_others.find("return") != this->_others.end()) {
-        if (this->_others.find("return")->first.compare("308") == 0)
+        if (this->_others.find("return")->second.front().compare("308") == 0)
             return this->set308Response(clientConnection, this->_others);
         return this->set301Response(clientConnection,  this->_others);
     }
@@ -168,7 +168,7 @@ VirtualServer::ReturnCode VirtualServer::processGET(Connection& clientConnection
     const Location& location = *locationPointer;
     const std::map<std::string, std::vector<std::string> > &locOthers = location.getOtherDirective();
     if (locOthers.find("return") != locOthers.end()) {
-        if (locOthers.find("return")->first.compare("308") == 0)
+        if (locOthers.find("return")->second.front().compare("308") == 0)
             return this->set308Response(clientConnection, locOthers);
         return this->set301Response(clientConnection, locOthers);
     }
@@ -299,15 +299,21 @@ VirtualServer::ReturnCode VirtualServer::processPOST(Connection& clientConnectio
     const std::string& targetResourceURI = request.getTargetResourceURI();
     std::string targetRepresentationURI;
 
-    if (this->_others.find("return") != this->_others.end())
+    if (this->_others.find("return") != this->_others.end()) {
+        if (this->_others.find("return")->second.front().compare("308") == 0)
+            return this->set308Response(clientConnection, this->_others);
         return this->set301Response(clientConnection,  this->_others);
+    }
     const Location* locationPointer = this->getMatchingLocation(request);
     if (locationPointer == NULL)
         return this->set400Response(clientConnection);
     const Location& location = *locationPointer;
     const std::map<std::string, std::vector<std::string> > &locOthers = location.getOtherDirective();
-    if (locOthers.find("return") != locOthers.end())
+    if (locOthers.find("return") != locOthers.end()) {
+        if (locOthers.find("return")->second.front().compare("308") == 0)
+            return this->set308Response(clientConnection, locOthers);
         return this->set301Response(clientConnection, locOthers);
+    }
     if (request.getBody().length() > static_cast<std::string::size_type>(location.getClientMaxBodySize()))
         return this->set413Response(clientConnection);
 
@@ -395,15 +401,21 @@ VirtualServer::ReturnCode VirtualServer::processDELETE(Connection& clientConnect
     struct stat buf;
     std::string targetRepresentationURI;
 
-    if (this->_others.find("return") != this->_others.end())
+    if (this->_others.find("return") != this->_others.end()) {
+        if (this->_others.find("return")->second.front().compare("308") == 0)
+            return this->set308Response(clientConnection, this->_others);
         return this->set301Response(clientConnection,  this->_others);
+    }
     const Location* locationPointer = this->getMatchingLocation(request);
     if (locationPointer == NULL)
         return this->set404Response(clientConnection);
     const Location& location = *locationPointer;
     const std::map<std::string, std::vector<std::string> > &locOthers = location.getOtherDirective();
-    if (locOthers.find("return") != locOthers.end())
+    if (locOthers.find("return") != locOthers.end()) {
+        if (locOthers.find("return")->second.front().compare("308") == 0)
+            return this->set308Response(clientConnection, locOthers);
         return this->set301Response(clientConnection, locOthers);
+    }
     if (!location.isRequestMethodAllowed(request.getMethod()))
         return this->set405Response(clientConnection, &location);
 
@@ -503,7 +515,7 @@ VirtualServer::ReturnCode VirtualServer::set308Response(Connection& clientConnec
     this->appendDefaultHeaderFields(clientConnection);
     clientConnection.appendResponseMessage("Connection: keep-alive\r\n");
     clientConnection.appendResponseMessage("Content-Length: ");
-    this->updateBodyString(Status::I_301, NULL, bodyString);
+    this->updateBodyString(Status::I_308, NULL, bodyString);
     ss << bodyString.size();
     clientConnection.appendResponseMessage(ss.str().c_str());
     clientConnection.appendResponseMessage("\r\n");
