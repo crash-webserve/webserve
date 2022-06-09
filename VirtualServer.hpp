@@ -36,6 +36,7 @@ struct Status {
         I_200,
         I_201,
         I_301,
+        I_308,
         I_400,
         I_404,
         I_405,
@@ -132,6 +133,7 @@ private:
     void updateBodyString(HTTP::Status::Index index, const char* description, std::string& bodystring) const;
 
     ReturnCode set301Response(Connection& clientConnection, const std::map<std::string, std::vector<std::string> >& locOther);
+    ReturnCode set308Response(Connection& clientConnection, const std::map<std::string, std::vector<std::string> >& locOther);
     ReturnCode set400Response(Connection& clientConnection);
     ReturnCode set404Response(Connection& clientConnection);
     ReturnCode set405Response(Connection& clientConnection, const Location* locations);

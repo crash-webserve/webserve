@@ -11,6 +11,7 @@ const Status Status::_array[] = {
     { "200", "ok" },
     { "201", "created" },
     { "301", "moved permanently" },
+    { "308", "Permanent Redirect" },
     { "400", "bad request" },
     { "404", "not found" },
     { "405", "method not allowed" },
@@ -156,15 +157,21 @@ VirtualServer::ReturnCode VirtualServer::processGET(Connection& clientConnection
     struct stat buf;
     std::string targetRepresentationURI;
 
-    if (this->_others.find("return") != this->_others.end())
+    if (this->_others.find("return") != this->_others.end()) {
+        if (this->_others.find("return")->first.compare("308") == 0)
+            return this->set308Response(clientConnection, this->_others);
         return this->set301Response(clientConnection,  this->_others);
+    }
     const Location* locationPointer = this->getMatchingLocation(request);
     if (locationPointer == NULL)
         return this->set404Response(clientConnection);
     const Location& location = *locationPointer;
     const std::map<std::string, std::vector<std::string> > &locOthers = location.getOtherDirective();
-    if (locOthers.find("return") != locOthers.end())
+    if (locOthers.find("return") != locOthers.end()) {
+        if (locOthers.find("return")->first.compare("308") == 0)
+            return this->set308Response(clientConnection, locOthers);
         return this->set301Response(clientConnection, locOthers);
+    }
     if (!location.isRequestMethodAllowed(request.getMethod()))
         return this->set405Response(clientConnection, &location);
     location.updateRepresentationPath(targetResourceURI, targetRepresentationURI);
@@ -468,6 +475,31 @@ VirtualServer::ReturnCode VirtualServer::set301Response(Connection& clientConnec
 
     clientConnection.clearResponseMessage();
     this->appendStatusLine(clientConnection, Status::I_301);
+    this->appendDefaultHeaderFields(clientConnection);
+    clientConnection.appendResponseMessage("Connection: keep-alive\r\n");
+    clientConnection.appendResponseMessage("Content-Length: ");
+    this->updateBodyString(Status::I_301, NULL, bodyString);
+    ss << bodyString.size();
+    clientConnection.appendResponseMessage(ss.str().c_str());
+    clientConnection.appendResponseMessage("\r\n");
+    clientConnection.appendResponseMessage("Content-Type: text/html");
+    clientConnection.appendResponseMessage("\r\n");
+    // location
+    clientConnection.appendResponseMessage("Location: ");
+    clientConnection.appendResponseMessage(this->makeLocationHeaderField(locOther) + clientConnection.getRequest().getTargetResourceURI().substr(1));
+    clientConnection.appendResponseMessage("\r\n");
+    clientConnection.appendResponseMessage("\r\n");
+
+    clientConnection.appendResponseMessage(bodyString);
+    return RC_SUCCESS;
+}
+
+VirtualServer::ReturnCode VirtualServer::set308Response(Connection& clientConnection, const std::map<std::string, std::vector<std::string> >& locOther) {
+    std::string bodyString;
+    std::stringstream ss;
+
+    clientConnection.clearResponseMessage();
+    this->appendStatusLine(clientConnection, Status::I_308);
     this->appendDefaultHeaderFields(clientConnection);
     clientConnection.appendResponseMessage("Connection: keep-alive\r\n");
     clientConnection.appendResponseMessage("Content-Length: ");
