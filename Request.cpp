@@ -273,7 +273,7 @@ HTTP::RequestMethod Request::requestMethodByString(const std::string& token) {
     return method;
 }
 
-inline void Request::updateParsedTarget(std::string parsed){    
+void Request::updateParsedTarget(std::string parsed){    
     this->_targetToken.push_back(parsed);
 }
 
