@@ -181,6 +181,7 @@ VirtualServer::ReturnCode VirtualServer::processGET(Connection& clientConnection
         targetExtention
     );
     if ( findResult != cgiExtensionOnLocation.end()) {
+        clientConnection.parseCGIurl(targetResourceURI, targetExtention);
         this->fillCGIEnvMap(clientConnection, location);
         return this->passCGI(clientConnection);
     }
@@ -793,10 +794,11 @@ static void updateContentType(const std::string& name, std::string& type) {
 //      type: type to set
 //  - Return(None)
 static void updateExtension(const std::string& name, std::string& extension) {
-    const std::string::size_type extensionBeginPosition = name.rfind('.');
+    const std::string::size_type extensionBeginPosition = name.rfind('.'); // NOTE : http://localhost/first/test.cgi/bin/var?name=ccc&value=4.5 <- last comma?
+    const std::string::size_type extensionEndPosition = name.find_first_of(std::string("/?"), extensionBeginPosition); // NOTE: except fragment
     extension.clear();
     if (extensionBeginPosition !=  std::string::npos)
-        extension = name.c_str() + extensionBeginPosition;
+        extension = name.substr(extensionBeginPosition, extensionEndPosition - extensionBeginPosition);
 }
 
 //  generate body string with index, description.
@@ -859,6 +861,7 @@ inline void insertToStringMap(StringMap& envMap, std::string key, std::string va
 void VirtualServer::fillCGIEnvMap(Connection& clientConnection, Location location) {
 	StringMap& em = this->_CGIEnvironmentMap;
     const Request& request = clientConnection.getRequest();
+    const std::vector<std::string> uriInfo = clientConnection.getRequest().getTargetToken();
 
     insertToStringMap(em, "SERVER_SOFTWARE", "FTServer/0.1");
     insertToStringMap(em, "SERVER_NAME", "NoName");
@@ -867,10 +870,10 @@ void VirtualServer::fillCGIEnvMap(Connection& clientConnection, Location locatio
     insertToStringMap(em, "SERVER_PROTOCOL", "HTTP/1.1");
 	insertToStringMap(em, "SERVER_PORT", "80");
     insertToStringMap(em, "REQUEST_METHOD", "POST");
-    insertToStringMap(em, "PATH_INFO", location.getRoute());
+    insertToStringMap(em, "PATH_INFO", uriInfo[1]);
     insertToStringMap(em, "PATH_TRANSLATED", location.getRoot() + "uri_path");
-    insertToStringMap(em, "SCRIPT_NAME", "script requested");
-    insertToStringMap(em, "QUERY_STRING", "query string");
+    insertToStringMap(em, "SCRIPT_NAME", uriInfo[0]);
+    insertToStringMap(em, "QUERY_STRING", uriInfo[2]);
     insertToStringMap(em, "REMOTE_HOST", "");
     insertToStringMap(em, "REMOTE_ADDR", "");
     insertToStringMap(em, "AUTH_TYPE", this->getHeaderValue(request, "Authorization"));

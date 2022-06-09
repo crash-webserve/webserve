@@ -218,3 +218,15 @@ EventContext::EventResult Connection::passParsedRequest() {
 	);
 	return EventContext::ER_Done;
 }
+
+void Connection::parseCGIurl(std::string const &targetResourceURI, std::string const &targetExtention) {
+    const std::string::size_type targetExtBeginPos = targetResourceURI.find(targetExtention);
+    const std::string::size_type targetQueryBeginPos = targetResourceURI.find_first_of(std::string("?"), targetExtBeginPos);
+    std::string scriptName = targetResourceURI.substr(0, targetExtBeginPos + targetExtention.size());
+    std::string pathInfo = targetResourceURI.substr(targetExtBeginPos + targetExtention.size(), targetQueryBeginPos - (targetExtBeginPos + targetExtention.size()));
+    std::string queryString = targetResourceURI.substr(targetQueryBeginPos + 1);;
+
+    this->_request.updateParsedTarget(scriptName);
+    this->_request.updateParsedTarget(pathInfo);
+    this->_request.updateParsedTarget(queryString);
+}

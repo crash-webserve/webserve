@@ -60,7 +60,8 @@ public:
     EventContext::EventResult handleCGIParamBody(int PipeToCGI);
     EventContext::EventResult handleCGIResponse(int PipeFromCGI);
     void addKevent(int filter, int fd, EventContext::EventType type, void* data);
-
+    void parseCGIurl(std::string const &targetResourceURI, std::string const &targetExtention);
+        
     class MAKESOCKETFAIL: public std::exception {
     public:
         virtual const char* what() const throw() {

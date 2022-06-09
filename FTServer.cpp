@@ -317,7 +317,7 @@ void FTServer::run() {
 //      Result flag of handled event
 EventContext::EventResult FTServer::driveThisEvent(EventContext* context, int filter) {
     Connection* connection = static_cast<Connection*>(context->getData());
-	if (filter != EVFILT_WRITE || filter != EVFILT_READ)
+	if (filter != EVFILT_WRITE && filter != EVFILT_READ)
 		return EventContext::ER_NA;
 	switch (context->getCallerType()) {
 	case EventContext::EV_Accept:

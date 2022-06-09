@@ -68,18 +68,21 @@ public:
     std::string getMessage() const { return this->_message; };
     const std::string* getFirstHeaderFieldValueByName(const std::string& name) const;
     const std::string& getBody() const { return this->_body; };
+    const std::vector<std::string> getTargetToken() const { return this->_targetToken; };
 
     void clearMessage();
     bool isParsingFail() const { return this->_parsingStatus == S_PARSING_FAIL; };
     bool isLengthRequired() const { return this->_parsingStatus == S_LENGTH_REQUIRED; };
 
     ReturnCaseOfRecv receive(int clientSocketFD);
+    void updateParsedTarget(std::string parsed);
 
 private:
     std::string _message;
 
     HTTP::RequestMethod _method;
     std::string _target;
+    std::vector<std::string> _targetToken;
     char _majorVersion;
     char _minorVersion;
 
