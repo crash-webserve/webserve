@@ -222,8 +222,8 @@ VirtualServer::ReturnCode VirtualServer::processGET(Connection& clientConnection
 
         return RC_IN_PROGRESS;
     }
-
-    if (stat(location.getIndex().c_str(), &buf) == 0
+    const std::string absoluteIndexPath = targetRepresentationURI + "/" + location.getIndex();
+    if (stat(absoluteIndexPath.c_str(), &buf) == 0
             && (buf.st_mode & S_IFREG) != 0) {
         this->appendStatusLine(clientConnection, Status::I_200);
 
@@ -250,8 +250,7 @@ VirtualServer::ReturnCode VirtualServer::processGET(Connection& clientConnection
 
         if (buf.st_size == 0)
             return RC_SUCCESS;
-
-        const int targetFileFD = open(location.getIndex().c_str(), O_RDONLY);
+        const int targetFileFD = open(absoluteIndexPath.c_str(), O_RDONLY);
         if (targetFileFD == -1)
             return RC_ERROR;
         if (fcntl(targetFileFD, F_SETFL, O_NONBLOCK) == -1) {
