@@ -31,8 +31,14 @@ public:
     ReturnCaseOfSend sendResponseMessage(int clientSocket);
     void processCGIResponse();
 
+    void initBodyBySize(std::string::size_type size);
+    void memcpyMessage(char* buf, ssize_t size) { memcpy(this->_copyBegin, buf, size); this->_copyBegin += size; };
+    bool isReadAllFile() const { return static_cast<std::string::size_type>(this->_copyBegin - &this->_message[0]) == this->_messageDataSize; };
+
 private:
     std::string _message;
+    std::string::size_type _messageDataSize;
+    char* _copyBegin;
     const char* _sendBegin;
 };
 

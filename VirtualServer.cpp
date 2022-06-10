@@ -220,6 +220,8 @@ VirtualServer::ReturnCode VirtualServer::processGET(Connection& clientConnection
 
         eventHandler.addEvent(EVFILT_READ, targetFileFD, EventContext::EV_GETResponse, &clientConnection);
 
+        clientConnection.initResponseBodyBySize(buf.st_size);
+
         return RC_IN_PROGRESS;
     }
 
@@ -261,6 +263,8 @@ VirtualServer::ReturnCode VirtualServer::processGET(Connection& clientConnection
 
         eventHandler.addEvent(EVFILT_READ, targetFileFD, EventContext::EV_GETResponse, &clientConnection);
 
+        clientConnection.initResponseBodyBySize(buf.st_size);
+
         return RC_IN_PROGRESS;
     }
 
@@ -282,17 +286,16 @@ EventContext::EventResult VirtualServer::eventGETResponse(EventContext& context,
     const int targetFileFD = context.getIdent();
     Connection& clientConnection = *static_cast<Connection*>(context.getData());
 
-    readByteCount = read(targetFileFD, buf, BUF_SIZE - 1);
+    readByteCount = read(targetFileFD, buf, BUF_SIZE);
     if (readByteCount == -1) {
         delete &context;
         close(targetFileFD);
         return EventContext::ER_Done;
     }
-    buf[readByteCount] = '\0';
 
-    clientConnection.appendResponseMessage(buf);
+    clientConnection.memcpyResponseMessage(buf, readByteCount);
 
-    if (readByteCount == BUF_SIZE - 1)
+    if (!clientConnection.isResponseReadAllFile())
         return EventContext::ER_Continue;
     else {
         delete &context;

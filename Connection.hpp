@@ -45,6 +45,7 @@ public:
     std::string getAddr() { return this->_addr; };
     port_t getPort() { return this->_hostPort; };
     const Request& getRequest() const { return this->_request; };
+    const Response& getResponse() const { return this->_response; };
     bool isClosed() { return this->_closed; };
     VirtualServer* getTargetVirtualServer() { return this->_targetVirtualServer; };
     void setTargetVirtualServer(VirtualServer* targetVirtualServer) { this->_targetVirtualServer = targetVirtualServer; };
@@ -83,7 +84,11 @@ public:
             return "listen() fail error!!";
         }
     };
-    
+
+    void initResponseBodyBySize(std::string::size_type size) { this->_response.initBodyBySize(size); };
+    void memcpyResponseMessage(char* buf, ssize_t size) { this->_response.memcpyMessage(buf, size); };
+    bool isResponseReadAllFile() { return this->_response.isReadAllFile(); };
+
 private:
     bool _client;
     int _ident;

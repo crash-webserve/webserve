@@ -3,6 +3,7 @@
 //  Constructor of Response.
 Response::Response()
 : _message("")
+, _copyBegin(NULL)
 , _sendBegin(NULL) { }
 
 //  clear message.
@@ -26,15 +27,16 @@ void Response::appendMessage(const std::string& message) {
 //  - Returns: See the type definition.
 ReturnCaseOfSend Response::sendResponseMessage(int clientSocket) {
     if (this->_sendBegin == NULL)
-        this->_sendBegin = this->_message.c_str();
+        this->_sendBegin = &this->_message[0];
 
-    std::size_t lengthToSend = std::strlen(this->_sendBegin);
-    ssize_t sendedBytes = send(clientSocket, this->_sendBegin, lengthToSend, 0);
+    const std::string::size_type sendedSize = this->_sendBegin - &this->_message[0];
+    const std::string::size_type sizeToSend = this->_messageDataSize - sendedSize;
+    ssize_t sendedBytes = send(clientSocket, this->_sendBegin, sizeToSend, 0);
 
     if (sendedBytes == -1) {
         return RCSEND_ERROR;
     }
-    else if (static_cast<std::size_t>(sendedBytes) != lengthToSend) {
+    else if (static_cast<std::string::size_type>(sendedBytes) != sizeToSend) {
         this->_sendBegin += sendedBytes;
 
         return RCSEND_SOME;
@@ -51,3 +53,10 @@ ReturnCaseOfSend Response::sendResponseMessage(int clientSocket) {
 void Response::processCGIResponse() {
     std::cout << "---response processing procedure---" << std::endl;
 }
+
+void Response::initBodyBySize(std::string::size_type size) {
+    std::string::size_type headerSize = this->_message.length();
+    this->_messageDataSize = headerSize + size;
+    this->_message.reserve(this->_messageDataSize);
+    this->_copyBegin = &this->_message[0] + headerSize;
+};
