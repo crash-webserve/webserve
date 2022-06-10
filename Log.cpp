@@ -31,29 +31,29 @@ void Log::printPrefixed(int logLevel, const char* format, va_list& va) {
 #if LOG_LEVEL >= 5
 void Log::verbose(const char* format, ...) { LOG_PRINT(LogVerbose) };
 #else
-void Log::verbose(const char* format, ...) {};
+void Log::verbose(const char* format, ...) { (void)format; };
 #endif
 
 #if LOG_LEVEL >= 4
 void Log::debug(const char* format, ...) { LOG_PRINT(LogDebug) };
 #else
-void Log::debug(const char* format, ...) {};
+void Log::debug(const char* format, ...) { (void)format; };
 #endif
 
 #if LOG_LEVEL >= 3
 void Log::info(const char* format, ...) { LOG_PRINT(LogInfo) };
 #else
-void Log::info(const char* format, ...) {};
+void Log::info(const char* format, ...) { (void)format; };
 #endif
 
 #if LOG_LEVEL >= 2
 void Log::warning(const char* format, ...) { LOG_PRINT(LogWarning) };
 #else
-void Log::warning(const char* format, ...) {};
+void Log::warning(const char* format, ...) { (void)format; };
 #endif
 
 #if LOG_LEVEL >= 1
 void Log::error(const char* format, ...) { LOG_PRINT(LogError) };
 #else
-void Log::error(const char* format, ...) {};
+void Log::error(const char* format, ...) { (void)format; };
 #endif

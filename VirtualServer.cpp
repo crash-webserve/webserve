@@ -207,6 +207,9 @@ VirtualServer::ReturnCode VirtualServer::processGET(Connection& clientConnection
         clientConnection.appendResponseMessage("Connection: keep-alive\r\n");
         clientConnection.appendResponseMessage("\r\n");
 
+        if (buf.st_size == 0)
+            return RC_SUCCESS;
+
         const int targetFileFD = open(targetRepresentationURI.c_str(), O_RDONLY);
         if (targetFileFD == -1)
             return RC_ERROR;
@@ -244,6 +247,9 @@ VirtualServer::ReturnCode VirtualServer::processGET(Connection& clientConnection
         clientConnection.appendResponseMessage("\r\n");
         clientConnection.appendResponseMessage("Connection: keep-alive\r\n");
         clientConnection.appendResponseMessage("\r\n");
+
+        if (buf.st_size == 0)
+            return RC_SUCCESS;
 
         const int targetFileFD = open(location.getIndex().c_str(), O_RDONLY);
         if (targetFileFD == -1)

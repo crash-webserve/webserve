@@ -1,4 +1,5 @@
 #include "Connection.hpp"
+#include "constant.hpp"
 
 // Constructor of Connection class ( no default constructor )
 // Generates a Connection instance for servers.
@@ -183,7 +184,7 @@ void Connection::bindSocket() {
 // Listen to the socket for incoming messages.
 //  - Return(none)
 void Connection::listenSocket() {
-    if (0 > listen(_ident, 10)) {
+    if (0 > listen(_ident, LISTEN_BACKLOG)) {
         throw Connection::LISTENSOCKETERROR();
     }
     if (fcntl(this->_ident, F_SETFL, O_NONBLOCK) == -1)
