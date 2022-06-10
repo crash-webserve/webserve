@@ -40,7 +40,7 @@ public:
     };
     void setAutoIndex(bool isAutoindex) { this->_autoindex = isAutoindex; };
     void setAllowedHTTPMethod(std::vector<std::string> allowedMethod) {
-        char beAllowed = '0';
+        char beAllowed = '\0';
         for (std::vector<std::string>::const_iterator itr = allowedMethod.begin(); itr != allowedMethod.end(); itr++) {
             if (*itr == "GET")
                 beAllowed |= HTTP::RM_GET;
@@ -48,6 +48,10 @@ public:
                 beAllowed |= HTTP::RM_POST; 
             else if (*itr == "DELETE")
                 beAllowed |= HTTP::RM_DELETE;
+            else if (*itr == "PUT")
+                beAllowed |= HTTP::RM_PUT;
+            else
+                beAllowed |= HTTP::RM_UNKNOWN;
         }
         if (beAllowed)
             this->_allowedHTTPMethod = beAllowed;

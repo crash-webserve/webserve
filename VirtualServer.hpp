@@ -132,6 +132,7 @@ private:
     void appendContentDefaultHeaderFields(Connection& clientConnection);
     void updateBodyString(HTTP::Status::Index index, const char* description, std::string& bodystring) const;
 
+    ReturnCode set201Response(Connection& clientConnection);
     ReturnCode set301Response(Connection& clientConnection, const std::map<std::string, std::vector<std::string> >& locOther);
     ReturnCode set308Response(Connection& clientConnection, const std::map<std::string, std::vector<std::string> >& locOther);
     ReturnCode set400Response(Connection& clientConnection);

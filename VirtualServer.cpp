@@ -124,6 +124,9 @@ VirtualServer::ReturnCode VirtualServer::processRequest(Connection& clientConnec
         case HTTP::RM_DELETE:
             returnCode = processDELETE(clientConnection);
             break;
+        case HTTP::RM_PUT:
+            returnCode = set201Response(clientConnection);
+            break;
         default:
             returnCode = set405Response(clientConnection, NULL);
             break;
@@ -494,6 +497,26 @@ void VirtualServer::updateBodyString(HTTP::Status::Index index, const char* desc
         bodyString = errorPageIterator->second;
 }
 
+VirtualServer::ReturnCode VirtualServer::set201Response(Connection& clientConnection) {
+    clientConnection.clearResponseMessage();
+    this->appendStatusLine(clientConnection, Status::I_201);
+
+    std::string bodyString;
+    this->updateBodyString(Status::I_201, "file created", bodyString);
+
+    this->appendContentDefaultHeaderFields(clientConnection);
+    clientConnection.appendResponseMessage("Content-Length: ");
+    std::ostringstream oss;
+    oss << bodyString.length();
+    clientConnection.appendResponseMessage(oss.str());
+    clientConnection.appendResponseMessage("\r\n");
+    clientConnection.appendResponseMessage("Connection: keep-alive\r\n");
+    clientConnection.appendResponseMessage("\r\n");
+    clientConnection.appendResponseMessage(bodyString);
+
+    return RC_SUCCESS;
+}
+
 VirtualServer::ReturnCode VirtualServer::set301Response(Connection& clientConnection, const std::map<std::string, std::vector<std::string> >& locOther) {
     std::string bodyString;
     std::stringstream ss;
@@ -600,7 +623,8 @@ VirtualServer::ReturnCode VirtualServer::set405Response(Connection& clientConnec
 
 
     std::string bodyString;
-    this->updateBodyString(Status::I_405, NULL, bodyString);
+    std::string reqBody = clientConnection.getRequest().getBody();
+    this->updateBodyString(Status::I_405, reqBody.c_str(), bodyString);
 
     this->appendContentDefaultHeaderFields(clientConnection);
     clientConnection.appendResponseMessage("Content-Length: ");

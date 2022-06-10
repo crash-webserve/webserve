@@ -79,6 +79,7 @@ private:
     EventContext::EventResult eventSetVirtualServerErrorPage(EventContext& context);
     EventContext::EventResult eventGETResponse(EventContext& context);
     EventContext::EventResult eventPOSTResponse(EventContext& context);
+    void printParseResult();
 };
 
 #endif  // FTSERVER_HPP_

@@ -298,6 +298,8 @@ HTTP::RequestMethod Request::requestMethodByString(const std::string& token) {
         method = HTTP::RM_POST;
     else if (token == "DELETE")
         method = HTTP::RM_DELETE;
+    else if (token == "PUT")
+        method = HTTP::RM_PUT;
     else
         method = HTTP::RM_UNKNOWN;
 

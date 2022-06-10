@@ -43,9 +43,8 @@ bool    VirtualServerConfig::parsing(std::fstream &fs, std::stringstream &ss, st
         return false;
     this->_inBrace = true;
     // token.clear();
-    ss >> token;
     while (true) {
-        if (!ss) {
+        if (ss.eof()) {
             if (!getline(fs, confLine)) // 스트림이 비어있고 가져올 줄이 없는 경우
                 break ;
             ss.clear();

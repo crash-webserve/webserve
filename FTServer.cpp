@@ -60,17 +60,20 @@ void FTServer::initParseConfig(std::string filePath) {
                 ServerConfigKey key;
                 directiveContainer tConfigs;
                 sc = new VirtualServerConfig();
-                if (!sc->parsing(fs, ss, confLine)) // fstream, stringstream를 전달해주는 방식으로 진행
-                    std::cerr << "not parsing config\n"; // 각 요소별 동적할당 해제시켜주는게 중요
+                if (!sc->parsing(fs, ss, confLine)) {
+                    Log::error("fail parsing config");
+                    delete sc;
+                    continue;
+                }
                 tConfigs = sc->getConfigs();
                 if (tConfigs.find("server_name") != tConfigs.end())
-                    key._server_name.push_back(tConfigs.find("server_name")->second[0]); // 가장 먼저 입력된 server_name 1개만
+                    key._server_name.push_back(tConfigs.find("server_name")->second[0]);
                 else
-                    key._server_name.push_back(""); // TODO server_name 비어있는 경우 "" 설정
+                    key._server_name.push_back("");
                 if (tConfigs.find("listen") != tConfigs.end())
                     key._port = tConfigs.find("listen")->second[0];
                 else {
-                    std::cerr << "not find listen value\n";
+                    Log::error("not find listen value");
                     delete sc;
                     continue;
                 }
@@ -80,12 +83,13 @@ void FTServer::initParseConfig(std::string filePath) {
                 }
                 this->_defaultConfigs.push_back(sc);
             } else
-                std::cerr << "not match (token != server)\n"; // (TODO) 오류터졌을 때 동적할당 해제 해줘야함
+                Log::error("token and server directive don't match");
             ss.clear();
         }
     }
     else
-        std::cerr << "not open file\n";
+        throw std::domain_error("not open file");
+    this->printParseResult();
 }
 
 //  Initialize server manager from server config set.
@@ -406,4 +410,52 @@ EventContext::EventResult FTServer::eventPOSTResponse(EventContext& context) {
     VirtualServer* targetVirtualServer = clientConnection->getTargetVirtualServer();
 
     return targetVirtualServer->eventPOSTResponse(context, this->_eventHandler);
+}
+void FTServer::printParseResult() {
+    // default 서버
+    // serverblock별
+    //      기본 설정판
+    //      location block별 판
+    int i = 1;
+    for(VirtualServerConfigIter vscItr = this->_defaultConfigs.begin();
+        vscItr != this->_defaultConfigs.end();
+        vscItr++) {
+            directiveContainer c =(*vscItr)->getConfigs();
+            std::cout << "==============   " << i <<  "th Server Config  =============\n";
+            std::cout << "==============   Basic Directives   =============\n";
+            for (directiveContainer::const_iterator cItr = c.begin();
+                cItr!= c.end();
+                cItr++) {
+                std::cout << std::setw(20) << std::left << cItr->first;
+                for (std::vector<std::string>::const_iterator cItr2 = cItr->second.begin();
+                    cItr2 != cItr->second.end();
+                    cItr2++)
+                    std::cout << *cItr2 << ' ';
+                std::cout << std::endl;
+            }
+            std::cout << std::endl;
+
+            std::set<LocationConfig *> l =(*vscItr)->getLocations();
+            std::cout << "===============     Locations      ===============\n";
+            for (std::set<LocationConfig *>::const_iterator lIter = l.begin();
+                lIter != l.end();
+                lIter++) {
+                directiveContainer c = (*lIter)->getDirectives();
+                std::cout << "==============  Location Directives ==============\n";
+                std::cout << std::setw(20) << std::left << "path ";
+                std::cout << (*lIter)->getPath() << '\n';
+                for (directiveContainer::const_iterator cItr = c.begin();
+                cItr!= c.end();
+                cItr++) {
+                std::cout << std::setw(20) << std::left  << cItr->first;
+                for (std::vector<std::string>::const_iterator cItr2 = cItr->second.begin();
+                    cItr2 != cItr->second.end();
+                    cItr2++)
+                    std::cout << *cItr2 << ' ';
+                std::cout << std::endl;
+            }
+            }
+            std::cout << "\n****************************************************\n"  << std::endl;
+            i++;
+        }
 }

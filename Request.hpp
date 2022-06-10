@@ -15,10 +15,11 @@ namespace HTTP {
 
 //  RequestMethod indicates request method type of HTTP request message.
 enum RequestMethod {
-    RM_UNKNOWN = 0x0,
     RM_GET = 0x1 << 0,
     RM_POST = 0x1 << 1,
     RM_DELETE = 0x1 << 2,
+    RM_PUT = 0x1 << 3,
+    RM_UNKNOWN = 0x1 << 4
 };
 
 }   // namespace HTTP
