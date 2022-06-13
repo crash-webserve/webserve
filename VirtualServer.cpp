@@ -23,12 +23,12 @@ const Status Status::_array[] = {
 static void updateContentType(const std::string& name, std::string& type);
 static void updateExtension(const std::string& name, std::string& extension);
 static void updateBodyString(HTTP::Status::Index index, const char* description, std::string& bodyString);
-
 //  Default constructor of VirtualServer.
 //  - Parameters(None)
 VirtualServer::VirtualServer() 
 : _portNumber(0),
-_name("")
+_name(""),
+_clientMaxBodySize(DEFAULT_CLIENT_MAX_BODY_SIZE)
 {
 } 
 
@@ -181,7 +181,10 @@ VirtualServer::ReturnCode VirtualServer::processGET(Connection& clientConnection
     }
     if (!location.isRequestMethodAllowed(request.getMethod()))
         return this->set405Response(clientConnection, &location);
-    if (request.getBody().length() > static_cast<std::string::size_type>(location.getClientMaxBodySize()))
+    int targetClientMaxBodysize = location.getClientMaxBodySize();
+    if (targetClientMaxBodysize < 0)
+        targetClientMaxBodysize = this->_clientMaxBodySize;
+    if (request.getBody().length() > static_cast<std::string::size_type>(targetClientMaxBodysize))
         return this->set413Response(clientConnection);
 
     location.updateRepresentationPath(targetResourceURI, targetRepresentationURI);
@@ -331,7 +334,10 @@ VirtualServer::ReturnCode VirtualServer::processPOST(Connection& clientConnectio
     }
     if (!location.isRequestMethodAllowed(request.getMethod()))
         return this->set405Response(clientConnection, &location);
-    if (request.getBody().length() > static_cast<std::string::size_type>(location.getClientMaxBodySize()))
+    int targetClientMaxBodysize = location.getClientMaxBodySize();
+    if (targetClientMaxBodysize < 0)
+        targetClientMaxBodysize = this->_clientMaxBodySize;
+    if (request.getBody().length() > static_cast<std::string::size_type>(targetClientMaxBodysize))
         return this->set413Response(clientConnection);
 
     location.updateRepresentationPath(targetResourceURI, targetRepresentationURI);
@@ -432,7 +438,10 @@ VirtualServer::ReturnCode VirtualServer::processDELETE(Connection& clientConnect
     }
     if (!location.isRequestMethodAllowed(request.getMethod()))
         return this->set405Response(clientConnection, &location);
-    if (request.getBody().length() > static_cast<std::string::size_type>(location.getClientMaxBodySize()))
+    int targetClientMaxBodysize = location.getClientMaxBodySize();
+    if (targetClientMaxBodysize < 0)
+        targetClientMaxBodysize = this->_clientMaxBodySize;
+    if (request.getBody().length() > static_cast<std::string::size_type>(targetClientMaxBodysize))
         return this->set413Response(clientConnection);
 
     location.updateRepresentationPath(targetResourceURI, targetRepresentationURI);

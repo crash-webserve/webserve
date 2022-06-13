@@ -30,10 +30,8 @@ int Location::getClientMaxBodySize() const {
         int maxBodySize;
         iss >> maxBodySize;
         if (!iss)
-            return INT_MAX;
-
+            return -1;
         return maxBodySize;
     }
-
-    return INT_MAX;
+    return -1;
 }
